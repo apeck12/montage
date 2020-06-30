@@ -26,8 +26,9 @@ class Sample:
         self.voxel_size = voxel_size # length of cubic voxel in nm
         self.angle = angle # current angle of tilt-series, initially set to 0 (normal to beam)
         self.__ori_center__ = np.array(volume_3d)/2.0 # set origin to sample center
-        self.interested_area = interested_area # either 'all_circles' or string of 'x,y' dimensions
         self.vx, self.vy, self.vz = self.__get_voxel_centers__() # x,y,z positions of voxel centers
+        self.interested_area = interested_area # either 'all_circles' or string of 'x,y' dimensions
+        self.interest_mask = None #initialized in self.set_interested_area()
         
     def __get_voxel_centers__(self):
         """
@@ -56,63 +57,94 @@ class Sample:
 
         return (vox_centers_x, vox_centers_y, vox_centers_z)
     
-    def set_interested_area(self, beam, voxel_dir):
+    def __set_rectangular_area__(self):
         """
-        Generate a mask that corresponds to the sample voxels in the area of interest. If
-        self.interested_area is 'all_circles', the region of interest includes all sample
-        voxels spanned by the act_beam_ind tiles of the Beam object. Otherwise, the region
-        of interest spans the rectangular region dictated by self.interested_area numbers.
+        Helper function for setting a rectangular prism as the area of interest of the sample.
+        """
+        #check valid input
+        try:
+            self.interested_area = np.array(self.interested_area.split('_'),dtype=float)
+            assert(len(self.interested_area) == 2)
+        except ValueError as error1:
+            print('Requires float type for setting interested area of the sample')
+            raise error1
+        except AssertionError as error2:
+            print('Requires two floats for setting interested area of the sample')
+            raise error2
+        # if the number of voxels is odd relative to the entire discretized specimen, the additional
+        # voxel is added to the right/positive side: e.g. x_masks = [0 0 1 1 1 0] or [0 0 1 1 1 1 0]
+        num_sample = np.array([len(self.vx), len(self.vy)])
+        num_area = np.array(self.interested_area/self.voxel_size, dtype=int)
+        odd_voxels = np.array((num_sample - num_area)%2, dtype=int)
+        # if size not multiple of vs, it is down calculated: e.g. with voxel size=2nm, specifying
+        # 5nm length is the same as 4nm.
+        half_num_voxels = np.array(np.array(self.interested_area)/self.voxel_size/2, dtype=int)
+        x_ind = int(len(self.vx)/2) - half_num_voxels[0]
+        y_ind = int(len(self.vy)/2) - half_num_voxels[1]
+
+        x_masks = np.zeros(len(self.vx))
+        if len(self.vx) % 2 == 0: 
+            start=x_ind
+            end=-x_ind+odd_voxels[0]
+        else: 
+            start=x_ind+odd_voxels[0]
+            end=-x_ind
+        if end == 0: x_masks[start:] = 1
+        else: x_masks[start:end] = 1
+
+        y_masks = np.zeros(len(self.vy))
+        if len(self.vy) % 2 == 0: 
+            start=y_ind
+            end=-y_ind+odd_voxels[1]
+        else: 
+            start=y_ind+odd_voxels[1]
+            end=-y_ind
+        if end == 0: y_masks[start:] = 1
+        else: y_masks[start:end] = 1
+
+        z_masks = np.ones(len(self.vz))
+        mask = np.array(list(itertools.product(x_masks, y_masks, z_masks)))
+        self.interest_mask = mask.prod(axis=1) == 1
+    
+    def set_interested_area(self, beam=None, voxel_dir=None):
+        """
+        Generate a mask (self.interest_mask) that corresponds to the sample voxels in the area
+        of interest.
+        If self.interested_area is 'all_circles', the region of interest includes all sample 
+        voxels spanned by the act_beam_ind tiles of the Beam object. 
+        If self.interested_area is 'num1_num2', the region of interest is a rectangular prism
+        centered at the origin of size num1(x-axis) and num2(y-axis) in unit of nm.
+        If, self.interested_area is 'num', the region of interest is a cylinder centered at
+        the origin of radius num in unit of nm.
         
-        Inputs:
+        Inputs (optional):
         -------
-        beam: instance of Beam class, with beam.patterns defined
-        voxel_dir: path to pre-computed voxel coordinates arrays
-        
-        Outputs:
-        --------
-        all_tiles: array of exposure counts for untilted sample and beam pattern at 0 degrees
-        self.interest_mask: boolean version of all_tiles, implicit variable
+        beam: instance of Beam class, with beam.patterns defined. only needed for 'all_circles'.
+        voxel_dir: path to pre-computed voxel coordinates arrays. only needed for 'all_circles'.
         """
         # set interest_mask region to be act_beam_ind tiles of Beam object
         if self.interested_area == 'all_circles':
+            #all_tiles: array of exposure counts for untilted sample and beam pattern at 0 degrees
             all_tiles = beam.image_all_beams(voxel_dir, 0, self.voxel_size, sample_init=True)
-            self.interest_mask = all_tiles >= 1
+            self.interest_mask = all_tiles >= 1 #boolean version of all_tiles
             
         # set interest_mask region to a rectangular region, an example input is '100.0_90.0'
-        # meaning the interest area is the CENTER rectagular of 100.0(x) and 90.0(y) size.
+        # meaning the interest area is the CENTER rectangular of 100.0nm(x) and 90.0nm(y) size.
+        elif '_' in self.interested_area:
+            self.__set_rectangular_area__()
+        
+        # set interest_mask region to the CENTER circle/cylinder region of radius specified
+        # by user input in unit of nm.
         else:
-            #check valid input
-            try:
-                self.interested_area = np.array(self.interested_area.split('_'),dtype=float)
-                assert(len(self.interested_area) == 2)
-            except ValueError as error1:
+            try: self.interested_area = float(self.interested_area)
+            except ValueError as error:
                 print('Requires float type for setting interested area of the sample')
-                raise error1
-            except AssertionError as error2:
-                print('Requires two floats for setting interested area of the sample')
-                raise error2
-            
-            # if odd number of voxels, the additional 1 voxe is added to the right/positive side
-            # e.g. x_masks = [0 0 1 1 1 0]
-            odd_voxels = np.array((self.interested_area/self.voxel_size)%2, dtype=int)
-
-            # if size not multiple of vs, it is down calculated: e.g. with voxel size=2nm,
-            # specifying 5nm length is the same as 4nm.
-            half_num_voxels = np.array(np.array(self.interested_area)/self.voxel_size/2, dtype=int)
-            x_ind = int(len(self.vx)/2) - half_num_voxels[0]
-            y_ind = int(len(self.vy)/2) - half_num_voxels[1]
-            if x_ind == 0: x_masks = np.ones(len(self.vx))
-            else:
-                x_masks = np.zeros(len(self.vx))
-                x_masks[x_ind:-x_ind+odd_voxels[0]] = 1
-            if y_ind == 0: y_masks = np.ones(len(self.vy))
-            else:
-                y_masks = np.zeros(len(self.vy))
-                y_masks[y_ind:-y_ind+odd_voxels[1]] = 1
-            z_masks = np.ones(len(self.vz))
-            mask = np.array(list(itertools.product(x_masks, y_masks, z_masks)))
-            self.interest_mask = mask.prod(axis=1) == 1
+                raise error
+            center = [0,0]
+            dists = distance_matrix(self.voxel_centers[:,:-1], [center])[:,0] #[:, 0] for flattening
+            self.interest_mask = dists <= self.interested_area
         return
+       
 
 class SampleHolder:
 
