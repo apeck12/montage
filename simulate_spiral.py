@@ -70,9 +70,34 @@ def parse_commandline():
                         required=False, default=7, type=int)
     parser.add_argument('-bid', '--act_beam_ind', help='Indices of non-buffer beams',
                         required=False, default=act_beam_ind, nargs='+', type=int)
+    parser.add_argument('-sig', '--shift_sigma', help='Sigma of normal distribution for beam shift errors',
+                        required=False, default=0.0, type=float)
     parser.add_argument('-out', '--out_dir', help='Path for saving output files',
                         required=False, default='./scratch', type=str)
     return vars(parser.parse_args())
+
+
+def prepare_logger(args):
+    """
+    Set up logger for output information.
+
+    Inputs:
+    -------
+    args: dict of command line inputs
+
+    Ouputs:
+    -------
+    main_logger: logger object
+    """
+    log_dir = os.path.join(args['out_dir'], 'log_files')
+    if not os.path.exists(log_dir): os.makedirs(log_dir)
+    log_name = f"log{args['sim_ind']}_n{args['n_processor']}_{args['voxel_size']}.log"
+    logging.basicConfig(filename=os.path.join(log_dir, log_name), filemode='w',
+                        format='%(name)s - %(levelname)s - %(message)s',
+                        level=logging.INFO)
+    main_logger = logging.getLogger('simulator')
+    main_logger.setLevel(logging.INFO)
+    return main_logger
 
 
 def generate_voxels_dict(sample, sample_holder, dir_name):
@@ -133,16 +158,19 @@ def prepare_sample(args):
     return sample, sample_holder, sample_voxel_dir
 
 
-def prepare_beam(args, tilt_angles):
+def prepare_beam(args, tilt_angles, sigma=0):
     """
     Prepare instance of Beam class, including tiling pattern for each angle of the
-    tilt-series through the use of Beam_offset_generator_spiral class.
+    tilt-series through the use of Beam_offset_generator_spiral class. If sigma is
+    non-zero, draw beam shift errors from a normal distribution with sigma standard
+    deviation independently for each beam position's x and y coordinates.
     
     Inputs:
     -------
     args: dictionary of arguments specifying simulation parameters
     tilt_angles: np.array of ordered angles in tilt-series
-    
+    sigma: standard deviation of normal distribution for beam shift errors
+
     Outputs:
     --------
     beam: instance of Beam class
@@ -166,11 +194,16 @@ def prepare_beam(args, tilt_angles):
     # compute tiling patterns for each image in the tilt-series and store in beam.patterns
     beam_offset_generator.offset_all_beams()
     beam.patterns = beam_offset_generator.offset_patterns
+
+    # add beam shift errors, drawn from a normal distribution
+    if sigma != 0:
+        for a in beam.patterns.keys():
+            beam.patterns[a] += np.random.normal(loc=0.0,scale=sigma,size=beam.patterns[a].shape)
     
     return beam
 
 
-def simulate_exposure(sample, beam, tilt_angles, sample_voxel_dir):
+def simulate_exposure(sample, beam, tilt_angles, sample_voxel_dir, roi_mask=None):
     """
     Simulate exposure for entire tilt-series and compute the normalized exposure
     counts for each specimen voxel.
@@ -181,6 +214,8 @@ def simulate_exposure(sample, beam, tilt_angles, sample_voxel_dir):
     beam: instance of Beam class, with tiling patterns pre-computed
     sample_voxel_dir: path to pre-computed voxel coordinates arrays
     tilt_angles: np.array of ordered angles in tilt-series
+    roi_mask: boolean array indicating voxels in region of interest, optional.
+        If None, set to sample.interest_mask.
     
     Outputs:
     --------
@@ -190,8 +225,10 @@ def simulate_exposure(sample, beam, tilt_angles, sample_voxel_dir):
     sample.exposure_counter += beam.image_all_tilts(sample_voxel_dir, 
                                                     tilt_angles, 
                                                     sample.voxel_size) 
-
-    return sample.exposure_counter[sample.interest_mask]/len(tilt_angles)
+    if roi_mask is None: 
+        roi_mask = sample.interest_mask
+    
+    return sample.exposure_counter[roi_mask]/len(tilt_angles)
 
 
 if __name__ == '__main__':
@@ -203,19 +240,21 @@ if __name__ == '__main__':
     if not os.path.exists(args['out_dir']): os.makedirs(args['out_dir'])
 
     # set up logger
-    log_dir = os.path.join(args['out_dir'], 'log_files')
-    if not os.path.exists(log_dir): os.makedirs(log_dir)
-    log_name = f"log{args['sim_ind']}_n{args['n_processor']}_{args['voxel_size']}.log"
-    logging.basicConfig(filename=os.path.join(log_dir, log_name), filemode='w', 
-                        format='%(name)s - %(levelname)s - %(message)s', 
-                        level=logging.INFO)
-    main_logger = logging.getLogger('simulator')
-    main_logger.setLevel(logging.INFO)
+    main_logger = prepare_logger(args)
+
+    # retrieve region of interest from ideal pattern if simulating beam shift errors 
+    if args['shift_sigma'] != 0:
+        sample_ideal, sample_holder_ideal, sample_voxel_dir = prepare_sample(args)
+        beam_ideal = prepare_beam(args, sample_holder_ideal.all_tilt_angles)
+        sample_ideal.set_interested_area(beam_ideal, sample_voxel_dir)
+        roi = sample_ideal.interest_mask.copy()
+    else:
+        roi = None
 
     # simulate exposure for the given tiling pattern
     sample, sample_holder, sample_voxel_dir = prepare_sample(args)
-    beam = prepare_beam(args, sample_holder.all_tilt_angles)
-    norm_counts = simulate_exposure(sample, beam, sample_holder.all_tilt_angles, sample_voxel_dir)
+    beam = prepare_beam(args, sample_holder.all_tilt_angles, sigma=args['shift_sigma'])
+    norm_counts = simulate_exposure(sample, beam, sample_holder.all_tilt_angles, sample_voxel_dir, roi_mask=roi)
 
     # save normalized exposure counts
     save_dir = os.path.join(args['out_dir'], 'norm_counts')
