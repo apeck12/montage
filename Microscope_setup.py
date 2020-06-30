@@ -77,11 +77,13 @@ class Sample:
         if self.interested_area == 'all_circles':
             all_tiles = beam.image_all_beams(voxel_dir, 0, self.voxel_size, sample_init=True)
             self.interest_mask = all_tiles >= 1
-          
-        # set interest_mask region to a rectangular region 
+            
+        # set interest_mask region to a rectangular region, an example input is '100.0_90.0'
+        # meaning the interest area is the CENTER rectagular of 100.0(x) and 90.0(y) size.
         else:
+            #check valid input
             try:
-                self.interested_area = np.array(self.interested_area.split(','),dtype=float)
+                self.interested_area = np.array(self.interested_area.split('_'),dtype=float)
                 assert(len(self.interested_area) == 2)
             except ValueError as error1:
                 print('Requires float type for setting interested area of the sample')
@@ -89,20 +91,28 @@ class Sample:
             except AssertionError as error2:
                 print('Requires two floats for setting interested area of the sample')
                 raise error2
+            
+            # if odd number of voxels, the additional 1 voxe is added to the right/positive side
+            # e.g. x_masks = [0 0 1 1 1 0]
+            odd_voxels = np.array((self.interested_area/self.voxel_size)%2, dtype=int)
+
+            # if size not multiple of vs, it is down calculated: e.g. with voxel size=2nm,
+            # specifying 5nm length is the same as 4nm.
             half_num_voxels = np.array(np.array(self.interested_area)/self.voxel_size/2, dtype=int)
             x_ind = int(len(self.vx)/2) - half_num_voxels[0]
             y_ind = int(len(self.vy)/2) - half_num_voxels[1]
-            x_masks = np.ones(len(self.vx))
-            y_masks = np.ones(len(self.vy))
-            x_masks[x_ind:-x_ind] = 0
-            y_masks[y_ind:-y_ind] = 0
-            z_masks = np.zeros(len(self.vz))
-            element_mask = np.array(list(itertools.product(x_masks, y_masks, z_masks)))
-            all_tiles = 1 - np.array(element_mask.sum(axis=1)>=1, dtype=int)
-            self.interest_mask = np.array(all_tiles, dtype=bool)
-
-        return all_tiles
-       
+            if x_ind == 0: x_masks = np.ones(len(self.vx))
+            else:
+                x_masks = np.zeros(len(self.vx))
+                x_masks[x_ind:-x_ind+odd_voxels[0]] = 1
+            if y_ind == 0: y_masks = np.ones(len(self.vy))
+            else:
+                y_masks = np.zeros(len(self.vy))
+                y_masks[y_ind:-y_ind+odd_voxels[1]] = 1
+            z_masks = np.ones(len(self.vz))
+            mask = np.array(list(itertools.product(x_masks, y_masks, z_masks)))
+            self.interest_mask = mask.prod(axis=1) == 1
+        return
 
 class SampleHolder:
 
