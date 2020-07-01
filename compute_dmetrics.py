@@ -3,7 +3,7 @@ from natsort import natsorted
 import pandas as pd
 import numpy as np
 import argparse, os, itertools
-import params, time, glob
+import scipy.stats, time, glob
 
 """
 Compute dose metrics from normalized counts files and convert to a pandas DataFrame.
@@ -17,7 +17,9 @@ def parse_commandline():
     parser = argparse.ArgumentParser(description='Compute dose metrics from normalized counts files.')
     parser.add_argument('-i','--input', help='Directory containing normalized counts arrays', 
                         required=True, type=str)
-    parser.add_argument('-p','--pattern', help='Pattern type: spiral or snowflake', 
+    parser.add_argument('-p','--params', help='Text file with each row indicating a set of simulation parameters',
+                        required=True, type=str)
+    parser.add_argument('-t','--pattern', help='Pattern type: spiral or snowflake', 
                         required=True, type=str)
     parser.add_argument('-s','--savepath', help='Path to which to save pandas DataFrame', 
                         required=True, type=str)
@@ -41,28 +43,44 @@ def compute_metrics(args):
     data = OrderedDict()
 
     # extract parameters: labels and values
-    p = params.set_params(args['pattern'])
-    combinations = params.generate_combinations(p, args['pattern'])
+    if args['pattern'] == 'spiral':
+        labels = ['sid','t_max','x_scale','start_angle','rot_step','alt','con','n_rev','sigma']
+        for i,f in enumerate(labels):
+            if f in ['x_scale','alt','con']: 
+                data[f] = np.genfromtxt(args['params'], usecols=[i], dtype=bool)
+            else:
+                data[f] = np.loadtxt(args['params'], usecols=[i])
+        data.pop('sid')
 
-    labels = list(p.keys())
-    if args['pattern'] == 'spiral': labels.insert(5, "continuous")
-    vals = list(combinations.values())
-    for i,f in enumerate(labels):
-        data[f] = [v[i] for v in vals]
+    elif args['pattern'] == 'snowflake':
+        labels = ['sid','t_step','t_max','start_angle','rot_step','alt']
+        for i,f in enumerate(labels):
+            if f in ['x_scale','alt']:
+                data[f] = np.genfromtxt(args['params'], usecols=[i], dtype=bool)
+            else:
+                data[f] = np.loadtxt(args['params'], usecols=[i])
+        data.pop('sid')
 
-    # compute dose metrics: mean, median, max, variance
+    else:        
+        print("Pattern type not recognized, should be spiral or snowflake")
+        sys.exit()
+
+    # compute various dose metrics
     fnames = natsorted(glob.glob(os.path.join(args['input'], "*.npy")))
-    for key in ['d_max', 'd_var', 'd_mean', 'd_fs_mean', 'd_fa_1.5', 'n_voxels']:
+    for key in ['d_max', 'd_var', 'd_mean', 'd_fs_mean', 'd_fa_1.5', 'd_skew', 'n_voxels','f_missing']:
         data[key] = np.zeros(len(fnames))
 
     for i,f in enumerate(fnames):
         print(f"Computing metrics for norm counts file {i}")
-        temp = np.load(f)
-        data['d_max'][i], data['d_var'][i] = np.max(temp), np.var(temp)
-        data['d_mean'][i] = np.mean(temp)
+        temp = np.load(f, mmap_mode='r')
+        data['d_max'][i] = np.max(temp) # max normalized dose
+        data['d_var'][i] = np.var(temp) # variance of distribution
+        data['d_mean'][i] = np.mean(temp) # mean normalized dose
         data['d_fs_mean'][i] = len(np.where(temp < np.mean(temp))[0]) / len(temp) # fraction below mean
         data['d_fa_1.5'][i] = len(np.where(temp > 1.5)[0]) / len(temp) # fraction above normalized counts of 1.5
-        data['n_voxels'][i] = len(temp)
+        data['d_skew'][i] = scipy.stats.skew(temp) # skew of distribution
+        data['f_missing'][i] = len(np.where(temp < 1.0)[0]) / len(temp) # fraction of missing voxels
+        data['n_voxels'][i] = len(temp) # number of voxels
 
     # convert to pandas DataFrame
     print("Saving to pandas DataFrame")
