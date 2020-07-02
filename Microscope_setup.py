@@ -26,9 +26,9 @@ class Sample:
         self.voxel_size = voxel_size # length of cubic voxel in nm
         self.angle = angle # current angle of tilt-series, initially set to 0 (normal to beam)
         self.__ori_center__ = np.array(volume_3d)/2.0 # set origin to sample center
+        self.interest_mask = None
         self.vx, self.vy, self.vz = self.__get_voxel_centers__() # x,y,z positions of voxel centers
         self.interested_area = interested_area # either 'all_circles' or string of 'x,y' dimensions
-        self.interest_mask = None #initialized in self.set_interested_area()
         
     def __get_voxel_centers__(self):
         """
