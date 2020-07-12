@@ -27,10 +27,13 @@ def set_params(pattern):
 
     if pattern == 'snowflake':
         params['alternate'] = [True, False]
+        params['n_steps'] = [0,1,2,3,4]
+        params['shift_sigma'] = [0]
 
     elif pattern == 'spiral':
         params['alternate'] = [True, False]
         params['n_revolutions'] = [0,2,3,4,5]
+        params['shift_sigma'] = [0]
 
     else:
         print("Pattern type must be spiral or snowflake.")
