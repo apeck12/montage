@@ -4,7 +4,7 @@ import argparse, os, logging
 import numpy as np
 
 """
-Simulate specimen exposure over the course of a tilt-series for a specific spiral tiling pattern.
+Simulate specimen exposure over the course of a tilt-series for a specific snowflake tiling pattern.
 """
 
 def str2bool(v):
