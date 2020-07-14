@@ -322,38 +322,74 @@ class Beam:
         return all_masks         
                                  
 
-class Beam_offset_generator:
-    def __init__(self, radius, beam_positions, act_beam_id, tilt_series, 
-                 trans_step_size=1/3, max_trans=2, xscale=False, 
+class Beam_offset_generator_snowflake:
+
+    """
+    Class for computing beam center positions that are hexagonally-tiled on individual
+    and follow a snowflake pattern over the course of the tilt-series.
+    """
+
+    def __init__(self, radius, beam_positions, tilt_series, 
+                 n_steps=2, max_trans=2, xscale=False, 
                  start_beam_angle=0, rotation_step=30, alternate=False):
-        self.radius = radius
-        self.beam_pos = beam_positions#np array
-        self.act_beam_ind = act_beam_id   #list
-        self.tilt_series = tilt_series#list, get from sample
-        self.snowflake = self.__generate_snowflake__(trans_step_size, max_trans)
-        self.Xscale = xscale
-        self.start_beam_angle = start_beam_angle
-        self.rotation_step = rotation_step
-        self.alternate = alternate
+        """
+        Initialize instance of class, including generation of basic snowflake pattern.
+        """
+        self.radius = radius # radius of beam in nanometers
+        self.beam_pos = beam_positions # array of hexagonally-tiled beam centers
+        self.tilt_series = tilt_series # array of ordered tilt angles
+        self.snowflake = self.__generate_snowflake__(n_steps, max_trans)
+        self.Xscale = xscale # boolean: scale the X-coordinate of the translation
+        self.start_beam_angle = start_beam_angle # initial angular offset in degrees
+        self.rotation_step = rotation_step # angular reorientation of spiral between images
+        self.alternate = alternate # boolean: alternate between snowflake pattern offset by rotation_step
         self.offset_patterns = OrderedDict()
         
-    def __generate_snowflake__(self, stepsize, translation_tot):
-        if stepsize == 0: return np.zeros(2)
-        stop_points = int(translation_tot/stepsize)+1
-        three_axes = np.array([[0,1],[np.sqrt(3)/2,0.5],[np.sqrt(3)/2,-0.5]])*translation_tot
-        snow_pat = np.linspace(0, three_axes, stop_points) - three_axes/2
-        i = int(stop_points/2)
-        if stop_points%2 != 0: i += 1
-        snow = [[0,0]]
-        while i < snow_pat.shape[0]:
-            for j in range(3):
-                snow.append(snow_pat[i,j].tolist())
-                snow.append(snow_pat[snow_pat.shape[0]-1-i,j].tolist())
-            i += 1
-        return np.array(snow)*self.radius
+    def __generate_snowflake__(self, n_steps, max_trans):
+        """
+        Generate basic snowflake pattern, where each coordinate corresponds to one of 
+        the positions the center of the hexagonally-tiled pattern will be shifted to.
         
+        Inputs:
+        -------
+        n_steps: number of positions between origin and outermost edge of snowflake
+        max_trans: maximum radial distance (units: radius) permitted for a position
+        
+        Outputs:
+        --------
+        snowflake: 2d array of (x,y) positions on the snowflake
+        """
+        # condition of zero translation
+        if (n_steps == 0) or (max_trans==0):
+            snow_pat = np.array([[0,0]])
+        
+        else:
+            # generate positions along each of the three axes, both positive and negative
+            three_axes = np.array([[0,1],[np.sqrt(3)/2,0.5],[np.sqrt(3)/2,-0.5]]) 
+            xy_pos = np.linspace(0,three_axes,n_steps+1)[1:].reshape(3*(n_steps),2)
+            xy_neg = -1 * xy_pos
+
+            # ordering is such that origin is first, then spiraling clockwise outwards
+            snow_pat = np.array([0,0])
+            for i in range(int(xy_pos.shape[0]/3)):
+                snow_pat = np.vstack((snow_pat, xy_pos[i*3:(i*3)+3]))
+                snow_pat = np.vstack((snow_pat, xy_neg[i*3:(i*3)+3]))
+            snow_pat = snow_pat * max_trans * self.radius
+            
+        return snow_pat
+
     def offset_all_beams(self, file_path=None):
+        """
+        For each tilt angle, offset the original hexagonally-tiled beam positions
+        based on the specified translational (snowflake) and rotational elements.
+        
+        Inputs:
+        -------
+        file_path: path to store pickled beam centers, optional
+        """
+        
         for a, tilt_angle in enumerate(self.tilt_series):
+            # set rotational component: optional rotation between tilts and angular offset
             theta = 0
             if a == 0: 
                 theta = np.radians(self.start_beam_angle)
@@ -366,21 +402,24 @@ class Beam_offset_generator:
             c, s = np.cos(theta), np.sin(theta)
             Rx = np.array(((c, -s), (s, c)))
             self.beam_pos = Rx.dot(self.beam_pos.T).T
-            #ms_logger.debug(f'rotate by {theta} at angle {tilt_angle}')
             self.snowflake = Rx.dot(self.snowflake.T).T
+             
+            # translational element: ath element of spiral, optionally X-scaled
             translation = self.snowflake[a%len(self.snowflake)].copy()
-            #ms_logger.debug(f'original translation by {translation}')
             if self.Xscale:
                 translation[0] /= np.cos(np.deg2rad(tilt_angle))
                 abs_offset = np.abs(translation[0])%(3*self.radius)
                 if translation[0] >= 0: translation[0] = abs_offset
                 else: translation[0] = -abs_offset
-                #ms_logger.debug(f'X-adjusted translation by {translation}')
+                
             self.offset_patterns[tilt_angle] = self.beam_pos + translation
             
+        # if a file path is supplied, save the beam positions
         if file_path is not None:
             with open(file_path, 'wb') as handle:
                 pickle.dump(self.offset_patterns, handle)
+
+        return
             
 
 class Beam_offset_generator_spiral:

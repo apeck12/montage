@@ -20,7 +20,7 @@ def set_params(pattern):
     Generate dictionary of grid search parameters for input pattern type.
     """
     params = OrderedDict()
-    params['translation_max'] = [1.5,2,3]
+    params['translation_max'] = [1,1.5,2]
     params['xscale'] = [True, False]
     params['start_beam_angle'] = [0,10,20,30,-10,-20,-30]
     params['rotation_step'] = [0,-10,-20,-30]
