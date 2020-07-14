@@ -65,21 +65,18 @@ def parse_commandline():
     parser.add_argument('-nr','--n_revolutions',
                         help='Number of total revolutions for spiral pattern',
                         required=False, default=2.0, type=float)
-    parser.add_argument('-b', '--max_beams', 
-                        help='max number of beams in the central row', 
-                        required=False, default=7, type=int)
-#     parser.add_argument('-bid', '--act_beam_ind', help='Indices of non-buffer beams',
-#                         required=False, default=act_beam_ind, nargs='+', type=int)
+    parser.add_argument('-bid', '--act_beam_ind', help='Indices of non-buffer beams',
+                        required=False, default=act_beam_ind, nargs='+', type=int)
     parser.add_argument('-sig', '--shift_sigma', help='Sigma of normal distribution for beam shift errors',
                         required=False, default=0.0, type=float)
+    parser.add_argument('-of','--overlap_fraction', 
+                        help='Fractional targeted overlap between two adjacent tiles, float between 0 and 1', 
+                        required=False, default=cal_fractional_overlap(), type=float)
+    parser.add_argument('-ff','--fringe_fraction', 
+                        help='Fraction of beam radius discarded due to Fresnel fringes, float between 0 and 1', 
+                        required=False, default=0, type=float)
     parser.add_argument('-out', '--out_dir', help='Path for saving output files',
                         required=False, default='./scratch', type=str)
-    parser.add_argument('-to','--target_overlap', 
-                        help='Targeted overlap percent of a tile, float between 0 and 1', 
-                        required=False, default=cal_overlap_percent(), type=float)
-    parser.add_argument('-fp','--fringe_percent', 
-                        help='percent of beam radius discarded due to Fresnel fringes, float between 0 and 1', 
-                        required=False, default=0, type=float)
     return vars(parser.parse_args())
 
 
@@ -124,7 +121,6 @@ def generate_voxels_dict(sample, sample_holder, dir_name):
             np_file_name = os.path.join(dir_name, f'vs{sample.voxel_size}nm_{tilt_angle}')
             np.save(np_file_name, sample.voxel_centers[:,:-1])
             sample_holder.raptor_tilt(sample)
-        sample.angle = 0 # reset sample angle
         main_logger.info(f'Finished precalculating voxels for each tilt angle at {dir_name}')
     else:
         main_logger.info(f'Voxels for all angles are already calculated in {dir_name}')
@@ -158,10 +154,9 @@ def prepare_sample(args):
     sample_voxel_dir = os.path.join(args['out_dir'], f'vol{x}_{y}_{z}_vs{sample.voxel_size}')
     generate_voxels_dict(sample, sample_holder, sample_voxel_dir)
 
-    # commented out as sample.angle is no longer used during imaging due to precalculated .npy files 
-#     # called twice to reset sample.voxel_centers to 0 degrees for downstream interested_area??
-#     sample = Sample(volume_3d=args['volume_3d'], voxel_size=args['voxel_size'], 
-#                     interested_area=args['interested_area']) 
+    # called twice to reset sample.voxel_centers to 0 degrees for downstream interested_area??
+    sample = Sample(volume_3d=args['volume_3d'], voxel_size=args['voxel_size'], 
+                    interested_area=args['interested_area']) 
     
     return sample, sample_holder, sample_voxel_dir
 
@@ -169,9 +164,11 @@ def prepare_sample(args):
 def prepare_beam(args, tilt_angles, sigma=0):
     """
     Prepare instance of Beam class, including tiling pattern for each angle of the
-    tilt-series through the use of Beam_offset_generator_spiral class. If sigma is
-    non-zero, draw beam shift errors from a normal distribution with sigma standard
-    deviation independently for each beam position's x and y coordinates.
+    tilt-series through the use of Beam_offset_generator_spiral class. If target 
+    overlap and/or fringe fraction are supplied, ideal beam positions are adjusted
+    to accommodate additional overlap.If sigma is non-zero, draw beam shift errors 
+    from a normal distribution with sigma standard deviation independently for each 
+    beam position's x and y coordinates.
     
     Inputs:
     -------
@@ -183,22 +180,18 @@ def prepare_beam(args, tilt_angles, sigma=0):
     --------
     beam: instance of Beam class
     """
-    # set up beam positions. If/else just to avoid interpolation error ~1e-7, maybe unnecessary.
-    # beam information: (x,y) coordinates of all beam centers and indices of central seven
-    # act_beam_ind currently only matters when args['interested_area'] == 'all_circles'
-    # note that there is currently no command input to adjust n_interest=7 and n_overlaps=1 
-    rand_beam_pos, act_beam_ind = hexagonal_tiling(max_one_row=args['max_beams'], n_interest=7)
-    if args['target_overlap'] == cal_overlap_percent() and args['fringe_percent'] == 0:
+    # prepare hexagonally-tiled beams, adjusting for Fresnel fringes or greater overlap as needed
+    rand_beam_pos, act_beam_ind = hexagonal_tiling(max_one_row=max_one_row, n_interest=n_interest)
+    if (args['overlap_fraction'] == cal_fractional_overlap()) and (args['fringe_fraction'] == 0):
         rand_beam_pos *= args['radius']
     else:
-        stride = interpolate_stride(args['target_overlap'], interp_points=10000, 
-                                    radius=1-args['fringe_percent'], n_overlaps=1)
-        # effective radius of minimally overlapped hexagonal tiling
+        stride = interpolate_stride(args['overlap_fraction'], interp_points=int(1e7), 
+                                    radius=(1.0-args['fringe_fraction']), n_overlaps=1)
         rand_beam_pos *= args['radius']*(stride/np.sqrt(3))
-    
+
     # set up instance of Beam class
     beam = Beam(radius=args['radius'], beam_pos=rand_beam_pos,
-                actual_beam_ind=act_beam_ind, n_processor=args['n_processor'])
+                actual_beam_ind=args['act_beam_ind'], n_processor=args['n_processor'])
 
     # set up instance of Beam_offset_generator_spiral class
     beam_offset_generator = Beam_offset_generator_spiral(radius=args['radius'], 
