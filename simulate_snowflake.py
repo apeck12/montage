@@ -66,6 +66,12 @@ def parse_commandline():
                         required=False, default=act_beam_ind, nargs='+', type=int)
     parser.add_argument('-sig', '--shift_sigma', help='Sigma of normal distribution for beam shift errors',
                         required=False, default=0.0, type=float)
+    parser.add_argument('-of','--overlap_fraction', 
+                        help='Fractional targeted overlap between two adjacent tiles, float between 0 and 1', 
+                        required=False, default=cal_fractional_overlap(), type=float)
+    parser.add_argument('-ff','--fringe_fraction', 
+                        help='Fraction of beam radius discarded due to Fresnel fringes, float between 0 and 1', 
+                        required=False, default=0, type=float)
     parser.add_argument('-out', '--out_dir', help='Path for saving output files',
                         required=False, default='./scratch', type=str)
     return vars(parser.parse_args())
@@ -155,9 +161,11 @@ def prepare_sample(args):
 def prepare_beam(args, tilt_angles, sigma=0):
     """
     Prepare instance of Beam class, including tiling pattern for each angle of the
-    tilt-series through the use of Beam_offset_generator_spiral class. If sigma is
-    non-zero, draw beam shift errors from a normal distribution with sigma standard
-    deviation independently for each beam position's x and y coordinates.
+    tilt-series through the use of Beam_offset_generator_snowflake class. If target 
+    overlap and/or fringe fraction are supplied, ideal beam positions are adjusted
+    to accommodate additional overlap.If sigma is non-zero, draw beam shift errors 
+    from a normal distribution with sigma standard deviation independently for each 
+    beam position's x and y coordinates.
     
     Inputs:
     -------
@@ -169,6 +177,15 @@ def prepare_beam(args, tilt_angles, sigma=0):
     --------
     beam: instance of Beam class
     """
+    # prepare hexagonally-tiled beams, adjusting for Fresnel fringes or greater overlap as needed
+    rand_beam_pos, act_beam_ind = hexagonal_tiling(max_one_row=max_one_row, n_interest=n_interest)
+    if (args['overlap_fraction'] == cal_fractional_overlap()) and (args['fringe_fraction'] == 0):
+        rand_beam_pos *= args['radius']
+    else:
+        stride = interpolate_stride(args['overlap_fraction'], interp_points=int(1e7), 
+                                    radius=(1.0-args['fringe_fraction']), n_overlaps=1)
+        rand_beam_pos *= args['radius']*(stride/np.sqrt(3))
+
     # set up instance of Beam class
     beam = Beam(radius=args['radius'], beam_pos=rand_beam_pos,
                 actual_beam_ind=args['act_beam_ind'], n_processor=args['n_processor'])
