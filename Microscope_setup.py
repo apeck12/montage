@@ -469,7 +469,7 @@ class Beam_offset_generator_spiral:
         
         else:
             a, b = 0.1, 10.0 # good default parameters; these eq. are an approximation
-            s = np.arange(41)
+            s = np.arange(len(self.tilt_series))
             factor = b * n_revolutions * np.pi / (2 * np.max(s))
             thetas = factor * 2*np.pi * np.sqrt(2*s/b)
             x = (a + b*thetas) * np.cos(thetas)
@@ -508,6 +508,100 @@ class Beam_offset_generator_spiral:
 
             # translational element: ath element of spiral, opt. X-scaled
             translation = self.spiral[a].copy()
+            if self.Xscale:
+                translation[0] /= np.cos(np.deg2rad(tilt_angle))
+                abs_offset = np.abs(translation[0])%(max_offset*self.radius)
+                if translation[0] >= 0: translation[0] = abs_offset
+                else: translation[0] = -abs_offset
+
+            self.offset_patterns[tilt_angle] = beam_pos_r + translation
+          
+        if file_path is not None:
+            with open(file_path, 'wb') as handle:
+                pickle.dump(self.offset_patterns, handle)
+                
+        return
+
+
+class Beam_offset_generator_sunflower:
+    
+    """
+    Class for computing beam center positions that are hexagonally-tiled on individual
+    tilt images and follow a sunflower pattern over the course of the tilt-series. The 
+    sunflower is a generative spiral that evenly distributes points in a 2d disc; see:
+    Swinbank and Purser (2006) Quarterly Journal of the Royal Meteorological Society. 
+    """
+    
+    def __init__(self, radius, beam_positions, tilt_series, max_trans=2, xscale=False, 
+                 start_beam_angle=0, rotation_step=30, alternate=True, continuous=False):
+        """
+        Initialize instance of class, including generation of basic sunflower pattern.
+        Note that either alternate or continuous arguments must be True.
+        """
+        self.radius = radius # radius of beam
+        self.beam_pos = beam_positions # array of hexagonally-tiled beam centers
+        self.tilt_series = tilt_series # array of ordered tilt angles
+        self.sunflower = self.__generate_sunflower__(max_trans)
+        self.Xscale = xscale # boolean: scale the X-coordinate of the translation
+        self.start_beam_angle = start_beam_angle # initial angular offset in degrees
+        self.rotation_step = rotation_step # angular reorientation of spiral between images
+        self.alternate = alternate # boolean: alternate rotation between images
+        self.continuous = continuous # boolean: rotate by rotation_step between images
+        self.offset_patterns = OrderedDict()
+            
+    def __generate_sunflower__(self, max_translation):
+        """
+        Generate the base sunflower pattern of evenly distributed points in a circle,
+        where each (x,y) coordinate corresponds to the position of the central tile.
+        See reference above for equations.
+
+        Inputs:
+        -------
+        max_translation: maximum distance from origin any point is allowed to take
+        
+        Outputs:
+        --------
+        sunflower: (x,y) coordinates along sunflower, np.array of shape (n_tilts, 2)
+        """
+        # for the special case of 0 max_trans, introduce no translational offset
+        if max_translation == 0:
+            return np.zeros((len(self.tilt_series),2))
+        
+        else:
+            n = np.arange(len(self.tilt_series))+1
+            r = np.sqrt(n/float(len(n)))
+            theta = 2*np.pi*n*(0.5*(1+np.sqrt(5))-1)
+            x,y = r*np.cos(theta), r*np.sin(theta)
+
+            x *= max_translation
+            y *= max_translation
+            return np.array([x,y]).T * self.radius    
+
+    def offset_all_beams(self, file_path=None, max_offset=3):
+        """
+        For each tilt angle, offset the original hexagonally-tiled beam positions
+        based on the specified translational (sunflower) and rotational elements.
+        
+        Inputs:
+        -------
+        file_path: path to store pickled beam centers, optional
+        max_offset: threshold in number of radii for maximum Xscale translation
+        """
+        for a,tilt_angle in enumerate(self.tilt_series):
+            # rotational element: reorient hexagonally-tiled centers
+            if self.alternate:
+                if a%2 == 1: theta = np.radians(self.rotation_step)
+                else: theta = np.radians(-self.rotation_step)
+            elif self.continuous: # overriden if alternate is True
+                theta = a*np.radians(self.rotation_step)
+            theta += np.radians(self.start_beam_angle)
+
+            c, s = np.cos(theta), np.sin(theta)
+            Rx = np.array(((c, -s), (s, c)))
+            beam_pos_r = Rx.dot(self.beam_pos.copy().T).T
+
+            # translational element: ath element of sunflower, opt. X-scaled
+            translation = self.sunflower[a].copy()
             if self.Xscale:
                 translation[0] /= np.cos(np.deg2rad(tilt_angle))
                 abs_offset = np.abs(translation[0])%(max_offset*self.radius)
