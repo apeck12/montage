@@ -19,7 +19,7 @@ def parse_commandline():
                         required=True, type=str)
     parser.add_argument('-p','--params', help='Text file with each row indicating a set of simulation parameters',
                         required=True, type=str)
-    parser.add_argument('-t','--pattern', help='Pattern type: spiral or snowflake', 
+    parser.add_argument('-t','--pattern', help='Pattern type: spiral or snowflake or sunflower', 
                         required=True, type=str)
     parser.add_argument('-s','--savepath', help='Path to which to save pandas DataFrame', 
                         required=True, type=str)
@@ -53,7 +53,7 @@ def compute_metrics(args):
         data.pop('sid')
 
     elif args['pattern'] == 'snowflake':
-        labels = ['sid','t_step','t_max','start_angle','rot_step','alt']
+        labels = ['sid','t_max','x_scale','start_angle','rot_step','alt','n_steps','sigma']
         for i,f in enumerate(labels):
             if f in ['x_scale','alt']:
                 data[f] = np.genfromtxt(args['params'], usecols=[i], dtype=bool)
@@ -61,8 +61,17 @@ def compute_metrics(args):
                 data[f] = np.loadtxt(args['params'], usecols=[i])
         data.pop('sid')
 
+    elif args['pattern'] == 'sunflower':
+        labels = ['sid','t_max','x_scale','start_angle','rot_step','alt','con','sigma']
+        for i,f in enumerate(labels):
+            if f in ['x_scale','alt','con']:
+                data[f] = np.genfromtxt(args['params'], usecols=[i], dtype=bool)
+            else:
+                data[f] = np.loadtxt(args['params'], usecols=[i])
+        data.pop('sid')
+
     else:        
-        print("Pattern type not recognized, should be spiral or snowflake")
+        print("Pattern type not recognized, should be spiral, snowflake, or sunfloewr")
         sys.exit()
 
     # compute various dose metrics
