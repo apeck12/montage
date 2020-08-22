@@ -359,7 +359,7 @@ if __name__ == '__main__':
         os.mkdir(args['output'])
     
     # process all images, parallelizing calculation via pathos
-    fnames_list = natsorted(glob.glob(args['input']))[:2]
+    fnames_list = natsorted(glob.glob(args['input']))
     pool = pp.ProcessPool(args['n_processes'])
     args_eval = zip([args]*len(fnames_list), fnames_list)
     pool.map(wrap_process_image, args_eval)
