@@ -44,6 +44,8 @@ def parse_commandline():
                         required=False, default=tilt_angle_range, nargs=2, type=float)
     parser.add_argument('-ti','--tilt_increment', help='Increment of tilt angle', 
                         required=False, default=tilt_angle_increment, type=float)
+    parser.add_argument('-cos','--cosine', help='Whether dose increases by 1/cos(tilt_angle)',
+                        required=False, default=False, type=str2bool)
     parser.add_argument('-r','--radius', default=rad, help='Radius of the beam', 
                         required=False, type=float)
     parser.add_argument('-tm','--max_trans', 
@@ -158,7 +160,7 @@ def prepare_sample(args):
     return sample, sample_holder, sample_voxel_dir
 
 
-def prepare_beam(args, tilt_angles, sigma=0):
+def prepare_beam(args, tilt_angles, cos=False, sigma=0):
     """
     Prepare instance of Beam class, including tiling pattern for each angle of the
     tilt-series through the use of Beam_offset_generator_spiral class. If target 
@@ -171,6 +173,7 @@ def prepare_beam(args, tilt_angles, sigma=0):
     -------
     args: dictionary of arguments specifying simulation parameters
     tilt_angles: np.array of ordered angles in tilt-series
+    cos: boolean dictating whether dose follows a 1/cos(tilt_angle) scheme
     sigma: standard deviation of normal distribution for beam shift errors
 
     Outputs:
@@ -188,7 +191,7 @@ def prepare_beam(args, tilt_angles, sigma=0):
 
     # set up instance of Beam class
     beam = Beam(radius=args['radius'], beam_pos=rand_beam_pos,
-                actual_beam_ind=args['act_beam_ind'], n_processor=args['n_processor'])
+                actual_beam_ind=args['act_beam_ind'], n_processor=args['n_processor'], cos=cos)
 
     # set up instance of Beam_offset_generator_spiral class
     beam_offset_generator = Beam_offset_generator_sunflower(radius=args['radius'], 
@@ -238,7 +241,11 @@ def simulate_exposure(sample, beam, tilt_angles, sample_voxel_dir, roi_mask=None
     if roi_mask is None: 
         roi_mask = sample.interest_mask
     
-    return sample.exposure_counter[roi_mask]/len(tilt_angles)
+    if beam.cos is False:
+        return sample.exposure_counter[roi_mask]/len(tilt_angles)
+    else:
+        max_exposure = np.sum(1.0/np.cos(np.deg2rad(tilt_angles)))
+        return sample.exposure_counter[roi_mask]/max_exposure
 
 
 if __name__ == '__main__':
@@ -263,7 +270,7 @@ if __name__ == '__main__':
 
     # simulate exposure for the given tiling pattern
     sample, sample_holder, sample_voxel_dir = prepare_sample(args)
-    beam = prepare_beam(args, sample_holder.all_tilt_angles, sigma=args['shift_sigma'])
+    beam = prepare_beam(args, sample_holder.all_tilt_angles, cos=args['cosine'], sigma=args['shift_sigma'])
     norm_counts = simulate_exposure(sample, beam, sample_holder.all_tilt_angles, sample_voxel_dir, roi_mask=roi)
 
     # save normalized exposure counts

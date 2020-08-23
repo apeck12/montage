@@ -52,7 +52,7 @@ class Sample:
                                                              vox_centers_z)))
         
         # set additional class variables: arrays for num counts and voxels in region of interest
-        self.exposure_counter = np.zeros(len(self.voxel_centers), dtype=int)
+        self.exposure_counter = np.zeros(len(self.voxel_centers), dtype=float)
         self.interest_mask = np.ones(len(self.voxel_centers), dtype=bool)
 
         return (vox_centers_x, vox_centers_y, vox_centers_z)
@@ -245,13 +245,14 @@ class Beam:
     those beams at each angle of the tilt-series.
     """
 
-    def __init__(self, radius, beam_pos=[(0,0)], actual_beam_ind=0, n_processor=4):
+    def __init__(self, radius, beam_pos=[(0,0)], actual_beam_ind=0, n_processor=4, cos=False):
         """
         Initialize instance of class, including generation of basic spiral pattern.
         Note that either alternate or continuous arguments must be True.
         """
         self.radius = radius # radius of beam in nm, float
         self.n_processes = n_processor # number of CPU processors, int
+        self.cos = cos # whether dose follows 1/cos(angle) scheme, boolean
         self.__all_pos__ = np.array(beam_pos) # 2d array of (x,y) hexagonally-tiled centers
         self.actual_beams = np.zeros(self.__all_pos__.shape[0], dtype=bool) 
         self.actual_beams[actual_beam_ind] = True # set which beams are of interest
@@ -285,11 +286,14 @@ class Beam:
         sample_voxels = np.load(voxel_file, mmap_mode='r')
         
         # for each beam tile, compute which voxels are imaged
-        mask = np.zeros(sample_voxels.shape[0], dtype=int)
+        mask = np.zeros(sample_voxels.shape[0], dtype=float)
         for p in pos:
             dists = distance_matrix(sample_voxels, [p])[:,0]
             mask_one_beam = dists <= self.radius
-            mask += mask_one_beam
+            if self.cos is False:
+                mask += mask_one_beam
+            else:
+                mask += 1*mask_one_beam * 1.0/np.cos(np.deg2rad(curr_angle))
 
         return mask
 
@@ -495,6 +499,7 @@ class Beam_offset_generator_spiral:
         """
         for a,tilt_angle in enumerate(self.tilt_series):
             # rotational element: reorient hexagonally-tiled centers
+            theta = 0
             if self.alternate:
                 if a%2 == 1: theta = np.radians(self.rotation_step)
                 else: theta = np.radians(-self.rotation_step)
@@ -589,6 +594,7 @@ class Beam_offset_generator_sunflower:
         """
         for a,tilt_angle in enumerate(self.tilt_series):
             # rotational element: reorient hexagonally-tiled centers
+            theta = 0
             if self.alternate:
                 if a%2 == 1: theta = np.radians(self.rotation_step)
                 else: theta = np.radians(-self.rotation_step)
