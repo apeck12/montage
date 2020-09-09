@@ -264,11 +264,17 @@ raw_ccmatrix:np array of shape (2*bound_p+1, 2*bound_p+1), where entry
 num_pxmatrix: np array of same shape above, where each entry is the number
               of overlapping pixels for that perturbed stitch
 '''
-def get_CC_matrix(images_dir_path, tilt_angle, centers0_path, masks_path, pair, bound_p):
-    tile1 = get_tile(images_dir_path, masks_path, tilt_angle, pair[0], plot=False)
-    tile2 = get_tile(images_dir_path, masks_path, tilt_angle, pair[1], plot=False)
-    mask1 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{pair[0]}.npy',mmap_mode='r')
-    mask2 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{pair[1]}.npy',mmap_mode='r')
+def get_CC_matrix(images_dir_path, tilt_angle, centers0_path, masks_path, pair, tile_inds, bound_p):
+    tile1 = get_tile(images_dir_path, masks_path, tilt_angle, tile_inds[pair[0]], plot=False)
+    tile2 = get_tile(images_dir_path, masks_path, tilt_angle, tile_inds[pair[1]], plot=False)
+    mask1 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{tile_inds[pair[0]]}.npy',mmap_mode='r')
+    mask2 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{tile_inds[pair[1]]}.npy',mmap_mode='r')
+    
+# def get_CC_matrix(images_dir_path, tilt_angle, centers0_path, masks_path, pair, bound_p):
+#     tile1 = get_tile(images_dir_path, masks_path, tilt_angle, pair[0], plot=False)
+#     tile2 = get_tile(images_dir_path, masks_path, tilt_angle, pair[1], plot=False)
+#     mask1 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{pair[0]}.npy',mmap_mode='r')
+#     mask2 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{pair[1]}.npy',mmap_mode='r')
     
     tile1 = ma.masked_array(tile1, 1-mask1)
     tile2 = ma.masked_array(tile2, 1-mask2)
@@ -302,12 +308,16 @@ Output: a tuple of three entries
 centers0: numpy array, optimized centers.
 all_raw_ccmatrix (only in debug mode): lists of n_beam CC matrices. The shape of the ith
                                        CC matrix is (M, 2*bound_p+1, 2*bound_p+1), where
-                                       M is the number tiles the ith tile was optimized
-                                       with respect to.
+                                       M is the number of tiles the ith tile was optimized
+                                       with respect to. Those M tiles must be optimized/
+                                       fixed already and overlapping with the ith tile.
 all_num_pxmatrix (only in debug mode): lists of n_beam matrices of number of overlapping
-                                       pixels. 
+                                       pixels.
+all_displacements (only in debug mode): lists of n_beam arrays. The shape of the ith
+                                        entry is (M, 2), indicating the optimal displacements
+                                        for the ith beam with respect to those M fixed tiles.
 '''
-def opt_CC_greedy(im_path, pairs_path, c_path, m_path, bound_p, tilt_angle,
+def opt_CC_greedy(im_path, pairs_path, c_path, m_path, bound_p, tilt_angle, tile_inds,
                   n_processes=4, debug=False):
 
     centers0 = np.load(c_path).copy()
@@ -315,9 +325,13 @@ def opt_CC_greedy(im_path, pairs_path, c_path, m_path, bound_p, tilt_angle,
 
     all_raw_ccmatrix = []
     all_num_pxmatrix = []
-    for ind in range(1, centers0.shape[0]): #assume first center is already fixed
-        rel_pairs = [p for p in pairs if ind == p[1]]
-        if debug: print(f'greedy at tile {ind} with relevant pairs {rel_pairs}')
+    all_displacements = []
+    for i in range(1, len(tile_inds)): #assume first center is already fixed
+#     for i in range(1, centers0.shape[0]): #assume first center is already fixed
+        rel_pairs = [p for p in pairs if i == p[1]]
+#         if debug: print(f'greedy at tile {i} with relevant pairs {rel_pairs}')
+        rel_pairs_act_ind = [(tile_inds[p[0]], tile_inds[p[1]]) for p in rel_pairs]
+        if debug: print(f'greedy at tile {tile_inds[i]} with relevant pairs {rel_pairs_act_ind}')
         
         pool = pp.ProcessPool(n_processes)
         all_cc_npix = pool.map(__get_CC_matrix_wrapper__, 
@@ -326,6 +340,7 @@ def opt_CC_greedy(im_path, pairs_path, c_path, m_path, bound_p, tilt_angle,
                                [c_path]*len(rel_pairs),
                                [m_path]*len(rel_pairs),
                                rel_pairs,
+                               [tile_inds]*len(rel_pairs),
                                [bound_p]*len(rel_pairs)))
         
         raw_ccmatrix = [x[0] for x in all_cc_npix]
@@ -339,98 +354,114 @@ def opt_CC_greedy(im_path, pairs_path, c_path, m_path, bound_p, tilt_angle,
         mat_ijs = np.array([np.unravel_index(np.argmax(norm), norm.shape) for norm in norm_cc])
         mat_i, mat_j = np.round(mat_ijs.mean(axis=0))
         if debug: 
-            print(f'center {ind} mat_ijs={mat_ijs}')
+#             print(f'center {i} mat_ijs={mat_ijs}')
+            print(f'center {i} (tile {tile_inds[i]}) mat_ijs={mat_ijs}')
             print(f'mean perturbed mat_i={mat_i} mat_j={mat_j}')
 #Approach 2. Average the CC matrices first then find the optimal displacement
 #         norm_cc = raw_ccmatrix.sum(axis=0)/num_pxmatrix.sum(axis=0)
 #         mat_i, mat_j = np.unravel_index(np.argmax(norm_cc), raw_ccmatrix.shape[1:])
-        centers0[ind,:] += np.array([mat_i-bound_p,mat_j-bound_p], dtype=int)
+        all_displacements.append(mat_ijs-bound_p)
+        centers0[i,:] += np.array([mat_i-bound_p,mat_j-bound_p], dtype=int)
         np.save(c_path, centers0)
 
-    if debug: return (centers0, all_raw_ccmatrix, all_num_pxmatrix)
-    return (centers0,-1,-1)
+    if debug: return (centers0, all_raw_ccmatrix, all_num_pxmatrix, all_displacements)
+    return (centers0,-1,-1,-1)
 
 
-#=================Functions below were not tested=====================#
+#=================Functions below were not outdated or not tested=====================#
+# def get_ImageShift(tilt_angle, tile_ind, pixel_unit=True):
+#     pixel_size = 1
+#     with open(f'Xgrating2_{tilt_angle}_{tile_ind}.mrc.mdoc', 'r') as f_mrc:
+#         for line in f_mrc:
+#             if 'PixelSpacing' in line and pixel_unit:
+#                 pixel_size = float(line.split('=')[1])
+#             if 'ImageShift' in line: 
+#                 im_shift = np.array(line.split('=')[1].split(), dtype=float)
+#                 print(f'ImageShift (um): {im_shift}')
+#                 im_shift = np.around(im_shift*1e4/pixel_size)
+#                 im_shift = np.array(im_shift, dtype=int)
+#                 print(f'ImageShift (pixels): {im_shift}')
+#                 return im_shift
+
     
-'''
-Calculate the total normalized cross-correlation score of the entire
-image/canvas for one tilt angle.
+# '''
+# Calculate the total normalized cross-correlation score of the entire
+# image/canvas for one tilt angle.
 
-Input:
-------
-images_path: string, path to file that stores all numpy nd array tiles.
-pairs_path: string, path to file that stores the list of pairs.
-centers0_path: string, path to file that stores initial guesses of the
-               centers.
-perturbation: 1d list of float of length 2*C, where C is the number of
-              tiles. Essentially a flattened array that stores the
-              perturbation to x and y coordinate of each tile center.
+# Input:
+# ------
+# images_path: string, path to file that stores all numpy nd array tiles.
+# pairs_path: string, path to file that stores the list of pairs.
+# centers0_path: string, path to file that stores initial guesses of the
+#                centers.
+# perturbation: 1d list of float of length 2*C, where C is the number of
+#               tiles. Essentially a flattened array that stores the
+#               perturbation to x and y coordinate of each tile center.
 
-Output:
--------
-float, total cross correlation normalized by total number of overlapping
-pixels.
-'''
-def cal_total_CC(images_dir_path, pairs_path, centers0_path, masks_path, perturbation):
-    images = np.load(images_dir_path, mmap_mode='r')
-    masks = np.load(masks_path, mmap_mode='r')
+# Output:
+# -------
+# float, total cross correlation normalized by total number of overlapping
+# pixels.
+# '''
+# def cal_total_CC(images_dir_path, pairs_path, centers0_path, masks_path, perturbation):
+#     images = np.load(images_dir_path, mmap_mode='r')
+#     masks = np.load(masks_path, mmap_mode='r')
     
-    tilt_angle = 0
-    pairs = np.load(pairs_path, mmap_mode='r')
-    centers0 = np.load(centers0_path, mmap_mode='r').copy()
-    centers0[1:,] += np.array(perturbation).reshape(-1,2)
-    raw_CC_total = 0
-    npixel_total = 0
-    for p in pairs:
-        i,j = p
-        tile1 = ma.masked_array(images[i,:,:],1-masks[i,:,:])
-        tile2 = ma.masked_array(images[j,:,:],1-masks[j,:,:])
-#         tile1_path = images_dir_path+f'Xgrating2_{tilt_angle}_{i}.npy'
-#         tile2_path = images_dir_path+f'Xgrating2_{tilt_angle}_{j}.npy'
-#         tile1 = np.load(tile1_path,mmap_mode='r')
-#         tile2 = np.load(tile2_path,mmap_mode='r')
-#         mask1 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{i}.npy',mmap_mode='r')
-#         mask2 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{j}.npy',mmap_mode='r')
-#         tile1 = ma.masked_array(tile1,1-mask1)
-#         tile2 = ma.masked_array(tile2,1-mask2)
+#     tilt_angle = 0
+#     pairs = np.load(pairs_path, mmap_mode='r')
+#     centers0 = np.load(centers0_path, mmap_mode='r').copy()
+#     centers0[1:,] += np.array(perturbation).reshape(-1,2)
+#     raw_CC_total = 0
+#     npixel_total = 0
+#     for p in pairs:
+#         i,j = p
+#         tile1 = ma.masked_array(images[i,:,:],1-masks[i,:,:])
+#         tile2 = ma.masked_array(images[j,:,:],1-masks[j,:,:])
+# #         tile1_path = images_dir_path+f'Xgrating2_{tilt_angle}_{i}.npy'
+# #         tile2_path = images_dir_path+f'Xgrating2_{tilt_angle}_{j}.npy'
+# #         tile1 = np.load(tile1_path,mmap_mode='r')
+# #         tile2 = np.load(tile2_path,mmap_mode='r')
+# #         mask1 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{i}.npy',mmap_mode='r')
+# #         mask2 = np.load(masks_path+f'Xgrating2_{tilt_angle}_{j}.npy',mmap_mode='r')
+# #         tile1 = ma.masked_array(tile1,1-mask1)
+# #         tile2 = ma.masked_array(tile2,1-mask2)
         
-        center1 = centers0[i,:]
-        center2 = centers0[j,:]
-        raw_cc, npixel = cal_overlap(tile1, tile2, center1, center2)
-        raw_CC_total += raw_cc
-        npixel_total += npixel
-    print(f'cc={raw_CC_total} nn={npixel_total}')    
-    return raw_CC_total/npixel_total
+#         center1 = centers0[i,:]
+#         center2 = centers0[j,:]
+#         raw_cc, npixel = cal_overlap(tile1, tile2, center1, center2)
+#         raw_CC_total += raw_cc
+#         npixel_total += npixel
+#     print(f'cc={raw_CC_total} nn={npixel_total}')    
+#     return raw_CC_total/npixel_total
 
-def __cal_total_CC_wrapper__(args):
-    return cal_total_CC(*args)
+# def __cal_total_CC_wrapper__(args):
+#     return cal_total_CC(*args)
 
-'''
-Brute force search what centers give highest total CC score.
-Not updated - do NOT use. 
+# '''
+# Brute force search what centers give highest total CC score.
+# Not updated - do NOT use. 
 
-Output:
--------
-centers0: numpy array, optimized centers.
-'''
-def opt_CC_brute_force(im_path, pr_path, cent_path, bound_p, 
-                       verbose=True, n_processes=4):
-    centers0 = np.load(cent_path, mmap_mode='r').copy()
-    perturbation = product(np.arange(-int(bound_p),int(bound_p)+1),
-                           repeat=centers0.flatten().shape[0]-2)
-    num_products = (2*int(bound_p)+1)**(centers0.flatten().shape[0]-2)
-    pool = pp.ProcessPool(n_processes)
-    all_norm_cc = pool.map(__cal_total_CC_wrapper__, 
-                           zip([im_path]*num_products,
-                               [pr_path]*num_products,
-                               [c_path]*num_products,
-                               perturbation))
-    all_norm_cc = np.array(all_norm_cc)
+# Output:
+# -------
+# centers0: numpy array, optimized centers.
+# '''
+# def opt_CC_brute_force(im_path, pr_path, cent_path, bound_p, 
+#                        verbose=True, n_processes=4):
+#     centers0 = np.load(cent_path, mmap_mode='r').copy()
+#     perturbation = product(np.arange(-int(bound_p),int(bound_p)+1),
+#                            repeat=centers0.flatten().shape[0]-2)
+#     num_products = (2*int(bound_p)+1)**(centers0.flatten().shape[0]-2)
+#     pool = pp.ProcessPool(n_processes)
+#     all_norm_cc = pool.map(__cal_total_CC_wrapper__, 
+#                            zip([im_path]*num_products,
+#                                [pr_path]*num_products,
+#                                [c_path]*num_products,
+#                                perturbation))
+#     all_norm_cc = np.array(all_norm_cc)
     
     
-    perturbation = product(np.arange(-int(bound_p),int(bound_p)+1),
-                           repeat=centers0.flatten().shape[0]-2)
-    opt_pert = np.array(list(perturbation))[all_norm_cc.argmax()]
-    centers0[1:,:] += opt_pert
-    return centers0  
+#     perturbation = product(np.arange(-int(bound_p),int(bound_p)+1),
+#                            repeat=centers0.flatten().shape[0]-2)
+#     opt_pert = np.array(list(perturbation))[all_norm_cc.argmax()]
+#     centers0[1:,:] += opt_pert
+#     return centers0  
