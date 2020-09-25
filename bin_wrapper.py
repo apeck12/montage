@@ -97,9 +97,9 @@ def bin_all_images(args):
         
     return
 
-#################################################
-# Stitch all tiles from a particular tilt image #
-#################################################
+################################################
+# Bin all input files using newstack from IMOD #
+################################################
 
 if __name__ == '__main__':
 
