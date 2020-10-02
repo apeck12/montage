@@ -4,9 +4,10 @@ import os, glob, time, argparse
 import mrcfile, itertools, pickle
 import numpy as np
 import numpy.ma as ma
+import utils
 
 """
-Determine the optimal tile centers for stitchign all tiles collected for a single tilt angle
+Determine the optimal tile centers for stitching all tiles collected for a single tilt angle
 into a composite image. The optimized centers, weights, and CC matrices are saved as pickle
 files. This assumes that masks have already been generated to remove the Frensel fringes.
 """
@@ -24,7 +25,7 @@ def parse_commandline():
                         required=True, type=str)
     parser.add_argument('-m','--mask_paths', help='Path to masks in glob-readable format',
                         required=True, type=str)
-    parser.add_argument('-c','--centers', help='Path to input beam centers supplied to SerialEM',
+    parser.add_argument('-c','--centers', help='Path to input beam centers file',
                         required=True, type=str)
     parser.add_argument('-t','--tilt_angle', help='Tilt angle to process',
                         required=True, type=int)
@@ -36,6 +37,10 @@ def parse_commandline():
                         required=True, type=str)
     parser.add_argument('-r','--rotation', help='Global rotation to apply to all beam centers',
                         required=False, type=float, default=0)
+    parser.add_argument('-bf','--bin_factor', help='Bin factor for centers file',
+                        required=False, type=float)
+    parser.add_argument('-A','--A', help='Pickle file of affine matrix for each tile',
+                        required=False, type=str)
 
     return vars(parser.parse_args())
 
@@ -51,7 +56,10 @@ def modify_args(args):
     mrc = mrcfile.open(args['image_paths'][0])
     args['voxel_size'] = float(mrc.voxel_size.x) # Angstrom / pixel
     mrc.close()
-    
+
+    if args['A'] is not None:
+        args['A'] = pickle.load(open(args['A'], "rb"))
+
     return args
 
 
@@ -86,11 +94,11 @@ def retrieve_beam_centers(centers_file, tilt_angle, voxel_size=None):
         as_array = np.array(line.strip().split()).astype(float)
         if (len(as_array) == 1) and (as_array[0] == tilt_angle):
             records = True
-        elif (len(as_array) == 2) and (records is True):
+        elif (len(as_array) >= 2) and (records is True):
             beam_centers.append(as_array)
         elif (len(as_array) == 1) and (as_array[0] != tilt_angle):
             records = False
-    beam_centers = np.array(beam_centers)
+    beam_centers = np.array(beam_centers)[:,:2]
     
     # convert from microns to pixels if mrcfile is provided
     if voxel_size is not None:
@@ -160,134 +168,23 @@ def set_up(args):
     tile_centers: array of input beam centers, modified for use as initial guesses
     overlaps: dict of tile index: array of indices of overlapping tiles
     """
-    tile_centers = retrieve_beam_centers(args['centers'], args['tilt_angle'], voxel_size=args['voxel_size'])
-    tile_centers -= tile_centers[0]
-    tile_centers = apply_rotation(tile_centers, args['rotation'])
-    tile_centers = np.fliplr(tile_centers)
+    # tile positions are estimated from inputs to SerialEM
+    if args['bin_factor'] is None:
+        tile_centers = retrieve_beam_centers(args['centers'], args['tilt_angle'], voxel_size=args['voxel_size'])
+        tile_centers -= tile_centers[0]
+        tile_centers = apply_rotation(tile_centers, args['rotation'])
+        tile_centers = np.fliplr(tile_centers)
+    
+    # tile positions have been pre-optimized from binned data
+    else:
+        tile_centers = np.array(list(pickle.load(open(args['centers'], "rb")).values()))
+        tile_centers -= tile_centers[0]
+        tile_centers *= args['bin_factor']
+    
     overlaps = predict_overlaps(tile_centers, args['beam_diameter'], args['voxel_size'])
     
     return tile_centers, overlaps
 
-
-##########################################
-# Stitching and conversion to mrc format #
-##########################################
-
-def save_mrc(volume, savename):
-    """
-    Save Nd numpy array, volume, to path savename in mrc format.
-    
-    Inputs:
-    -------
-    volume: Nd array to be saved
-    savename: path to which to save Nd array in mrc format
-    """
-    mrc = mrcfile.new(savename, overwrite=True)
-    mrc.header.map = mrcfile.constants.MAP_ID
-    mrc.set_data(volume.astype(np.float32))
-    mrc.close()
-    return
-
-
-def stitch(image_paths, mask_paths, centers, savename=None):
-    """
-    Stitch tiles together into a single array based on input centers, averaging
-    the values of pixels that overlap. Optionally save as an mrc file.
-    
-    Inputs:
-    -------
-    image_paths: ordered list of tile file names
-    mask_paths: ordered list of mask file names
-    centers: 2d array of optimized beam coordinates
-    savename: if provided, save as mrc file
-    
-    Outputs:
-    --------
-    stitched: array of stitched images
-    """
-    
-    # generate a canvas slightly larger than required
-    tile_shape = mrcfile.open(image_paths[0]).data.shape
-    canvas_size = np.array(centers.max(axis=0)-centers.min(axis=0)+tile_shape, dtype=int)
-    canvas_size  = np.array(canvas_size*1.1, dtype=int) 
-    
-    # set up canvas that images will be added to and center coordinates within canvas frame
-    stitched = np.zeros(tuple(canvas_size))
-    counts = np.zeros(tuple(canvas_size))
-    COM = np.array((canvas_size/2*centers.shape[0] - centers.sum(axis=0))/centers.shape[0], dtype=int)
-    centers += COM
-    
-    # add tiles to canvas and divde by number of unmasked pixels
-    Rx,Ry = tile_shape
-    upleft = np.array(centers - [Rx/2, Ry/2],int)
-    for i in range(centers.shape[0]):
-        tile = mrcfile.open(image_paths[i]).data.copy()
-        mask = np.load(mask_paths[i])
-        tile *= mask
-        upleft_x, upleft_y = np.array(upleft[i,:], dtype=int)
-        assert(upleft_x >= 0 and upleft_y >= 0)
-        stitched[upleft_x:upleft_x+Rx, upleft_y:upleft_y+Ry] += tile 
-        counts[upleft_x:upleft_x+Rx, upleft_y:upleft_y+Ry] += mask
-    stitched[counts!=0] /= counts[counts!=0]
-    
-    if savename is not None:
-        save_mrc(stitched, savename)
-        
-    return stitched
-
-
-###############################################
-# Tile pre-processing: masking, normalization #
-###############################################
-
-def mask_tile(tile_path, mask_path):
-    """
-    Convert tile to masked array format using the numpy.ma module.
-    
-    Inputs:
-    -------
-    tile_path: path to tile in MRC format
-    mask_path: path to mask in npy format, value of 0 means discard
-    
-    Outputs:
-    --------
-    tile: tile in masked array format
-    """
-    # load image file
-    mrc_tile = mrcfile.open(tile_path)
-    p_tile = mrc_tile.data.copy()
-    mrc_tile.close()
-    
-    # load mask file; value of 0 corresponds to masked region
-    mask = np.load(mask_path).astype(bool)
-    tile = ma.masked_array(p_tile, mask=np.invert(mask))
-    
-    return tile
-
-
-def normalize(tile, mu=None, sigma=None):
-    """
-    Standardize values of tile to have a mean of 0 and a standard deviation of 1:
-    norm_image = (image - image.mean()) / image.std()
-    Alternatively, mean and standard deviation can be supplied to normalize tiles
-    based on statistics for all tiles from the tilt angle. It's assumed that the 
-    image is pre-masked.
-    
-    Inputs:
-    -------
-    tile: tile in masked array format
-    mu: global mean to use for standardization, optional
-    sigma: global standard deviation to use for standardization, optional
-    
-    Outputs:
-    --------
-    tile: normalized tile in masked array format
-    """
-    if mu is None: mu = np.mean(tile)
-    if sigma is None: sigma = np.std(tile)
-        
-    return (tile - mu) / sigma
-    
     
 ################################################
 # Optimization of centers by cross-correlation #
@@ -378,7 +275,7 @@ def optimize_centers(tile1, tile2, center1, center2, max_shift):
     return center2_opt, max_score, cc_matrix, npix_overlap
 
 
-def optimize_pair(image_paths, mask_paths, beam_centers, idx1, idx2, max_shift):
+def optimize_pair(image_paths, mask_paths, beam_centers, idx1, idx2, max_shift, A=None):
     """
     Optimize the coordinates of the second tile (index idx2) for a pair of tiles. 
     If the optimized coordinates are at the edge of the maximal translation region,
@@ -392,6 +289,7 @@ def optimize_pair(image_paths, mask_paths, beam_centers, idx1, idx2, max_shift):
     idx1: index of tile1
     idx2: index of tile2
     max_shift: maximum translation allowed during coordinates optimziation
+    A: dict of affine matrix for each tile
     
     Outputs:
     --------
@@ -401,8 +299,14 @@ def optimize_pair(image_paths, mask_paths, beam_centers, idx1, idx2, max_shift):
     """
     
     # mask and normalize tiles of interest
-    tile1 = normalize(mask_tile(image_paths[idx1], mask_paths[idx1]))
-    tile2 = normalize(mask_tile(image_paths[idx2], mask_paths[idx2]))
+    if A is None:
+        tile1 = utils.normalize(utils.load_mask_tile(image_paths[idx1], mask_paths[idx1]))
+        tile2 = utils.normalize(utils.load_mask_tile(image_paths[idx2], mask_paths[idx2]))
+    else:
+        tile1, mask = utils.load_mask_tile(image_paths[idx1], mask_paths[idx1], as_masked_array=False)
+        tile1 = utils.apply_affine(tile1, mask, A[idx1])
+        tile2, mask = utils.load_mask_tile(image_paths[idx2], mask_paths[idx2], as_masked_array=False)
+        tile2 = utils.apply_affine(tile2, mask, A[idx2])
     
     # extract centers; center1 will be held fixed
     center1, center2 = beam_centers[idx1], beam_centers[idx2]
@@ -491,10 +395,5 @@ if __name__ == '__main__':
         os.mkdir(args['save_dir'])
 
     opt_centers = optimize_all(args, tile_centers, overlaps)
-
-    # this requires more memory than a default job request on the HPC gives
-    #centers = np.array(list(opt_centers.values()))
-    #savename = os.path.join(args['save_dir'], f"stitched_{args['tilt_angle']}.mrc")
-    #stitch(args['image_paths'], args['mask_paths'], centers, savename=savename)
 
     print(f"elapsed time is {((time.time()-start_time)/60.0):.2f}")
