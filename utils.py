@@ -43,7 +43,7 @@ def load_mask_tile(tile_path, mask_path, as_masked_array=True):
         return ma.masked_array(tile, mask=np.invert(mask))
 
 
-def save_mrc(data, savename):
+def save_mrc(data, savename, voxel_size=None):
     """
     Save Nd numpy array to path savename in mrc format.
     
@@ -51,10 +51,13 @@ def save_mrc(data, savename):
     -------
     data: Nd array to be saved
     savename: path to which to save Nd array in mrc format
+    voxel_size: voxel size for header, optional
     """
     mrc = mrcfile.new(savename, overwrite=True)
     mrc.header.map = mrcfile.constants.MAP_ID
     mrc.set_data(data.astype(np.float32))
+    if voxel_size is not None:
+        mrc.voxel_size = voxel_size
     mrc.close()
     return
 
