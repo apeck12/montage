@@ -304,7 +304,7 @@ def simulate_exposure(sample, beam, tilt_angles, sample_voxel_dir, roi_mask=None
         return sample.exposure_counter[roi_mask]/max_exposure
 
 
-if __name__ == '__main__':
+def main():
 
     start_time = time.time()
 
@@ -337,3 +337,7 @@ if __name__ == '__main__':
 
     elapsed_time = (time.time() - start_time)/60.0
     main_logger.info(f'Simulation took {elapsed_time} minutes in total.')
+
+
+if __name__ == '__main__':
+    main()
