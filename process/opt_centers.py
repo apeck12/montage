@@ -16,7 +16,7 @@ def parse_commandline():
     """
     Parse commandline input.
     """
-    parser = argparse.ArgumentParser(description='Stitch all tiles for a given tilt angle.')
+    parser = argparse.ArgumentParser(description='Optimize relative tile positions for specified tilt angle.')
     parser.add_argument('-i','--image_paths', help='Path to images in glob-readable format', 
                         required=True, type=str)
     parser.add_argument('-m','--mask_paths', help='Path to masks in glob-readable format',
