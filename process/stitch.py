@@ -64,14 +64,17 @@ def preprocess_tile(image_path, mask_path):
     """
     Apply gain correction and mask to tile.
     
-    Parameters:
-    -------
-    image_path: path to tile
-    mask_path: path to mask containing gain correction and fringe mask
+    Parameters
+    ----------
+    image_path : string 
+        path to tile
+    mask_path : string 
+        path to mask containing gain correction and fringe mask
     
-    Returns:
-    --------
-    tile: gain-corrected, masked tile 
+    Returns
+    -------
+    tile : numpy.ndarray, shape (N,M)
+        gain-corrected, masked tile with same shape as input image
     """
     # load tile and convert from int to float
     mrc_tile = mrcfile.open(image_path)
@@ -94,13 +97,17 @@ def fill_gaps_by_sampling(image, missing_idx, length):
     
     Parameters:
     -------
-    image: image with gaps to be filled, 2d numpy array
-    missing_idx: indices of missing pixels of shape (n_missing, 2)
-    length: length of cubic region around missing pixels to sample from
+    image : numpy.ndarray, shape (N,M)
+        stitched image with gaps to be filled
+    missing_idx : numpy.ndarray, shape (N,2)
+        coordinates of pixels that need to be filled by sampling
+    length : int 
+        length of square region around missing pixels to sample from
     
     Returns:
     --------
-    new_tilt: processed image with gaps filled
+    image : numpy.ndarray, shape (N,M)
+        stitched image with gaps filled
     """
 
     hlength = int(length/2)
@@ -123,19 +130,27 @@ def stitch(image_paths, mask_paths, centers, params, length, voxel_size=None, sa
     are filled by choosing the value from the next closest tile; if gaps remain,
     then the values of missing pixels are filled by sampling from nearby pixels.
     
-    Parameters:
-    -----------
-    image_paths: ordered list of tile file names
-    mask_paths: ordered list of mask file names
-    centers: 2d array of optimized beam coordinates
-    params: 2d array of optimized beam centers within each tile
-    length: box length for filling in missing pixels by sampling
-    voxel_size: voxel size for MRC header
-    savename: if provided, save as mrc file
+    Parameters
+    ----------
+    image_paths : list of strings
+        filenames of tiles to stitch
+    mask_paths : list of strings
+        filenames of masks, ordered as image_paths
+    centers : numpy.ndarray, shape (N, 2)
+        optimized beam coordinates relative to the central tile, ordered as image_paths
+    params : numpy.ndarray, shape (N, 2)
+        optimized beam centers in the frame of the detector, ordered as image_paths 
+    length : int 
+        box length for filling in missing pixels by sampling
+    voxel_size : string, optional
+        voxel size for MRC header; if None, do not amend header
+    savename : string, optional
+        path to MRC file to save; if None, stitch is not saved
     
-    Returns:
-    --------
-    stitched: array of stitched images
+    Returns
+    -------
+    stitched : numpy.ndarray, shape (N, N)
+        stitched projection image
     """
     import scipy.spatial
     

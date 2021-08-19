@@ -27,14 +27,15 @@ def modify_args(args):
     """
     Modify command line arguments and add additional information to keys.
 
-    Parameters:
+    Parameters
     -----------
-    args: dict containing image_paths, bin_factor, and output keys
+    args : dictionary 
+        contains image_paths and output keys
 
-
-    Returns:
+    Returns
     --------
-    args: modified input dictionary
+    args : dictionary
+        input modified, with filenames glob-expanded and data type noted
     """
     # get data type and expand paths keys into ordered lists
     args['dtype'] = args['image_paths'][-3:] 
@@ -51,9 +52,10 @@ def bin_all_images(args):
     """
     Bin all images by desired factor using the newstack function in IMOD.
     
-    Parameters:
+    Parameters
     -----------
-    args: dict containing image_paths, bin_factor, and output keys
+    args : dictionary
+        contains image paths, bin factor, data type, and output path
     """
 
     bin_factor = args['bin_factor']

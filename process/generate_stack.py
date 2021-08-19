@@ -64,16 +64,20 @@ def retrieve_beam_centers(centers_file, voxel_size):
     Retrieve the position of the central tile for each tilt angle and convert from 
     microns to pixels
     
-    Parameters:
-    -----------
-    centers_file: filename of predicted beam centers, where x,y coordinates of each 
-        tile are listed on separate lines after a particular tilt angle
-    voxel_size: in A/pixel to convert coordinates from microns to pixels
+    Parameters
+    ----------
+    centers_file : string 
+        filename of predicted beam centers, where x,y coordinates of each 
+        tile are listed in um on separate lines after the relevant tilt angle
+    voxel_size : float 
+        voxel dimensions in A/pixel
     
-    Returns:
-    --------
-    origin_shifts: 2d array whose nth row gives the (x,y) origin shift of the nth tilt
-    tilt_angles: array of tilt angles ordered as images were collected
+    Returns
+    -------
+    origin_shifts : numpy.ndarray, shape (N, 2) 
+        global origin shifts applied to each tilt angle
+    tilt_angles : numpy.ndarray, shape (N,) 
+        tilt angles ordered as images were collected
     """
     
     origin_shifts, tilt_angles = list(), list()
@@ -98,14 +102,17 @@ def apply_rotation(beam_centers, rotation_angle):
     """
     Rotate beam centers in the plane of the detector.
     
-    Parameters:
-    -----------
-    beam_centers: 2d array of tiles' center coordinates 
-    rotation_angle: rotation angle in degrees
+    Parameters
+    ----------
+    beam_centers : numpy.ndaarray, shape (N, 2)
+        beam centers
+    rotation_angle : float 
+        rotation angle to apply in degrees
     
-    Returns:
-    --------
-    r_beam_centers: rotated beam centers
+    Returns
+    -------
+    r_beam_centers : numpy.ndarray, shape (N, 2) 
+        rotated beam centers
     """
     theta = np.radians(rotation_angle)
     c, s = np.cos(theta), np.sin(theta)
@@ -119,14 +126,17 @@ def stack_stitched(args):
     Crop and then stack stitched tilt images into a tilt-series, accounting
     for the global offset in the tile positions between tilt angles.
 
-    Parameters:
-    -----------
-    args: dict of command line arguments
+    Parameters
+    ----------
+    args: dictionary 
+        command line arguments
 
-    Returns:
-    --------
-    tilt_series: tilt-series as a numpy array
-    tilts: array of tilt angles ordered as images in tilt_series
+    Returns
+    -------
+    tilt_series : numpy.ndarray, shape (n_tilts, N, N) 
+        coarsely-aligned tilt-stack
+    tilts : numpy.ndarray, shape (N,) 
+        tilt angles ordered as images in tilt_series
     """
     # retrieve origin shifts and tilt angles
     shifts, all_tilts = retrieve_beam_centers(args['centers'], args['voxel_size'])
