@@ -98,29 +98,6 @@ def retrieve_beam_centers(centers_file, voxel_size):
     return origin_shifts, np.array(tilt_angles)
 
 
-def apply_rotation(beam_centers, rotation_angle):
-    """
-    Rotate beam centers in the plane of the detector.
-    
-    Parameters
-    ----------
-    beam_centers : numpy.ndaarray, shape (N, 2)
-        beam centers
-    rotation_angle : float 
-        rotation angle to apply in degrees
-    
-    Returns
-    -------
-    r_beam_centers : numpy.ndarray, shape (N, 2) 
-        rotated beam centers
-    """
-    theta = np.radians(rotation_angle)
-    c, s = np.cos(theta), np.sin(theta)
-    R = np.array(((c, -s), (s, c)))
-    
-    return beam_centers.dot(R)
-
-
 def stack_stitched(args):
     """
     Crop and then stack stitched tilt images into a tilt-series, accounting
@@ -140,7 +117,7 @@ def stack_stitched(args):
     """
     # retrieve origin shifts and tilt angles
     shifts, all_tilts = retrieve_beam_centers(args['centers'], args['voxel_size'])
-    shifts = apply_rotation(shifts, args['rotation'])
+    shifts = utils.apply_rotation(shifts, args['rotation'])
     shifts = np.fliplr(shifts)
     t_shifts = OrderedDict((key,val) for key,val in zip(all_tilts,shifts))
     

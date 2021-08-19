@@ -119,29 +119,6 @@ def retrieve_beam_centers(centers_file, tilt_angle, voxel_size=None):
     return beam_centers
 
 
-def apply_rotation(beam_centers, rotation_angle):
-    """
-    Rotate beam centers in plane of detector.
-    
-    Parameters
-    ----------
-    beam_centers : numpy.ndaarray, shape (N, 2)
-        beam centers
-    rotation_angle : float 
-        rotation angle to apply in degrees
-    
-    Returns
-    -------
-    r_beam_centers : numpy.ndarray, shape (N, 2) 
-        rotated beam centers
-    """
-    theta=np.radians(rotation_angle)
-    c, s = np.cos(theta), np.sin(theta)
-    R = np.array(((c, -s), (s, c)))
-    
-    return beam_centers.dot(R)
-
-
 def predict_overlaps(beam_centers, beam_diameter, voxel_size, n_layers):
     """
     Predict the indices of overlapping tiles.
@@ -234,7 +211,7 @@ def set_up(args):
     if args['centers'][-3:] == 'txt':
         tile_centers = retrieve_beam_centers(args['centers'], args['tilt_angle'], voxel_size=args['voxel_size'])
         tile_centers -= tile_centers[0]
-        tile_centers = apply_rotation(tile_centers, args['rotation'])
+        tile_centers = utils.apply_rotation(tile_centers, args['rotation'])
         tile_centers = np.fliplr(tile_centers)
     
     # tile positions have been pre-optimized from binned data
