@@ -18,15 +18,19 @@ def hexagonal_tiling(max_one_row, n_interest=7):
     """
     Compute beam center positions (dimensionless) for hexagonally-tiled beams.
 
-    Parameters:
-    -----------
-    max_one_row: maximum number of tiles along the central row
-    n_interest: number of central beams of interest
+    Parameters
+    ----------
+    max_one_row : int
+        maximum number of tiles along the central row
+    n_interest : int
+        number of central beams of interest
 
-    Returns:
+    Returns
     --------
-    rows: (x,y) coordinates of beam center positions
-    act_beam_ind: indices of n_interest central beams of interest
+    rows : numpy.ndarray of shape (n_beams, 2)
+        (x,y) coordinates of beam center positions
+    act_beam_ind : numpy.ndarray of shape (N,)
+        indices of n_interest central beams of interest
     """
     x_spacing = np.linspace(-int(max_one_row/2)*np.sqrt(3), int(max_one_row/2)*np.sqrt(3), max_one_row)
     row_mid = np.column_stack((x_spacing, np.zeros(len(x_spacing))))
@@ -57,15 +61,19 @@ def cal_fractional_overlap(radius=1, stride=np.sqrt(3), n_overlaps=1):
     https://mathworld.wolfram.com/Circle-CircleIntersection.html. Default value 
     is set for perfect hexgonal tiling in which three beams intersect at a point.
 
-    Parameters:
-    -----------
-    radius: float, beam radius. default=1 (unitless)
-    stride: float, distance of beam shift (between centers of adjacent beams)
-    n_overlaps: int between 1 and 6, the number of overlaps (lemon shapes) to be considered.
+    Parameters
+    ----------
+    radius : float
+        beam radius. default=1 (unitless)
+    stride : float
+        distance of beam shift between centers of adjacent beams in units of radius
+    n_overlaps : int 
+        the number of overlapping beam pairs, between 1 and 6
     
-    Returns:
-    --------
-    f_overlap: float, the percentage of overlapped area of a tile
+    Returns
+    -------
+    f_overlap : float
+        the percentage of overlapped area of a tile
     """
 
     arc_angle = np.arccos(stride/2/radius) #in radians
@@ -81,16 +89,21 @@ def interpolate_stride(target_overlap, interp_points=1e7, radius=1, n_overlaps=1
     Given a desired percentage of overlapped area, find the stride by interpolation
     assuming that hexagonal symmetry is maintained along all directions.
 
-    Parameters:
-    -----------
-    target_overlap: float, desired fraction of overlapped area of a tile
-    interp_points: int, number of points for interpolation between stride=radius and stride=2*radius.
-    radius: float, beam radius. default=1 (unitless)
-    n_overlaps: int between 1 and 6, the number of overlaps (lemon shapes) to be considered.
+    Parameters
+    ----------
+    target_overlap : float
+        desired fraction of overlapped area of a tile
+    interp_points : int 
+        number of points for interpolation between stride=radius and stride=2*radius.
+    radius : float
+        beam radius. default=1 (unitless)
+    n_overlaps : int 
+        the number of overlapping beam pairs, between 1 and 6 
 
-    Returns:
-    --------
-    opt_stride: float, approximated stride to reach the target fractional overlap
+    Returns
+    -------
+    opt_stride : float
+        approximated stride to reach the target fractional overlap
     """
 
     stride_arr = np.linspace(radius, 2*radius, int(interp_points))

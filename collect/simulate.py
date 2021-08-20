@@ -114,13 +114,15 @@ def prepare_logger(args):
     """
     Set up logger for output information.
 
-    Parameters:
-    -------
-    args: dict of command line inputs
+    Parameters
+    ----------
+    args : dictionary 
+        command line inputs
 
-    Ouputs:
+    Returns
     -------
-    main_logger: logger object
+    main_logger : Logger object
+        logging system
     """
     log_dir = os.path.join(args['out_dir'], 'log_files')
     if not os.path.exists(log_dir): os.makedirs(log_dir)
@@ -138,11 +140,14 @@ def generate_voxels_dict(sample, sample_holder, dir_name):
     Precalculate voxel coordinates for tilt-series, saving a np.array per tilt angle,
     unless precomputed files already exist.
     
-    Parameters:
-    -----------
-    sample: instance of Sample class from Microscope_setup.py
-    sample_holder: instance of SampleHolder class from Microscope_setup.py
-    dir_name: path to which to save precomputed voxels arrays
+    Parameters
+    ----------
+    sample : Sample object
+        instance of class for tracking dose received by discretized sample
+    sample_holder : SampleHolder object
+        instance of class for tilting desciretized sample through tilt-series
+    dir_name : string
+        path for saving precomputed voxels arrays
     """
     if not os.path.exists(dir_name): 
         os.makedirs(dir_name)
@@ -163,15 +168,19 @@ def prepare_sample(args):
     Prepare instances of Sample and SampleHolder classes, including precalculation
     of voxel coordinates arrays.
     
-    Parameters:
-    -----------
-    args: dictionary of arguments specifying simulation parameters
+    Parameters
+    ----------
+    args : dictionary 
+        command line input that specifies simulation parameters
     
-    Returns:
-    --------
-    sample: instance of Sample class from Microscope_setup
-    sample_holder: instance of SampleHolder class from Microscope_setup
-    sample_voxel_dir: path to pre-computed voxel coordinates arrays
+    Returns
+    -------
+    sample : Sample object
+        instance of class for tracking dose received by discretized sample
+    sample_holder : SampleHolder object
+        instance of class for tilting desciretized sample through tilt-series
+    sample_voxel_dir : string
+        path for saving precomputed voxels arrays
     """
     # set up instances of Sample and SampleHolder classes
     sample = Sample(volume_3d=args['volume_3d'], voxel_size=args['voxel_size'],
@@ -200,16 +209,21 @@ def prepare_beam(args, tilt_angles, cos=False, sigma=0):
     from a normal distribution with sigma standard deviation independently for each 
     beam position's x and y coordinates.
     
-    Parameters:
-    -----------
-    args: dictionary of arguments specifying simulation parameters
-    tilt_angles: np.array of ordered angles in tilt-series
-    cos: boolean dictating whether dose follows a 1/cos(tilt_angle) scheme
-    sigma: standard deviation of normal distribution for beam shift errors
+    Parameters
+    ----------
+    args : dictionary 
+        command line input that specifies simulation parameters
+    tilt_angles : numpy.ndarray, shape (N,) 
+        ordered angles in tilt-series
+    cos : boolean, default=False
+        if True, dose follows a 1/cos(tilt_angle) scheme
+    sigma : float
+        standard deviation of normal distribution for beam shift errors
 
-    Returns:
-    --------
-    beam: instance of Beam class
+    Returns
+    -------
+    beam : Beam object
+        instance of class that tracks beam positions and corresponding illuminated regions
     """
     # prepare hexagonally-tiled beams, adjusting for Fresnel fringes or greater overlap as needed
     rand_beam_pos, act_beam_ind = hexagonal_tiling(max_one_row=max_one_row, n_interest=n_interest)
@@ -277,18 +291,23 @@ def simulate_exposure(sample, beam, tilt_angles, sample_voxel_dir, roi_mask=None
     Simulate exposure for entire tilt-series and compute the normalized exposure
     counts for each specimen voxel.
     
-    Parameters:
-    -------
-    sample: instance of Sample class from Microscope_setup
-    beam: instance of Beam class, with tiling patterns pre-computed
-    sample_voxel_dir: path to pre-computed voxel coordinates arrays
-    tilt_angles: np.array of ordered angles in tilt-series
-    roi_mask: boolean array indicating voxels in region of interest, optional.
-        If None, set to sample.interest_mask.
+    Parameters
+    ----------
+    sample : Sample object
+        instance of class for tracking dose received by discretized sample
+    beam : Beam object
+        instance of class that tracks beam positions and corresponding illuminated regions
+    sample_voxel_dir : string
+        path for saving precomputed voxels arrays
+    tilt_angles : numpy.ndarray, shape (n_tilts,) 
+        ordered angles in tilt-series
+    roi_mask: numpy.ndarray, shape (M,N)
+        array indicating voxels in region of interest; if None, set to sample.interest_mask
     
-    Returns:
-    --------
-    norm_voxel_counts: normalized counts of length no. voxels in act_beam_ind 
+    Returns
+    -------
+    norm_voxel_counts : numpy.ndarray, shape (P,)
+        normalized dose counts for voxels in region of interest, flattened
     """
     sample.set_interested_area(beam, sample_voxel_dir)
     sample.exposure_counter += beam.image_all_tilts(sample_voxel_dir, 

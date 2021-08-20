@@ -357,14 +357,17 @@ class Beam_offset_generator_snowflake:
         Generate basic snowflake pattern, where each coordinate corresponds to one of 
         the positions the center of the hexagonally-tiled pattern will be shifted to.
         
-        Parameters:
-        -----------
-        n_steps: number of positions between origin and outermost edge of snowflake
-        max_trans: maximum radial distance (units: radius) permitted for a position
+        Parameters
+        ----------
+        n_steps: int
+            number of positions between origin and outermost edge of snowflake
+        max_trans: float
+            maximum radial distance (units: radius) permitted for a position
         
-        Returns:
-        --------
-        snowflake: 2d array of (x,y) positions on the snowflake
+        Returns
+        -------
+        snowflake: numpy.ndarray of shape (n_tilts, 2)
+            (x,y) coordinates on the snowflake
         """
         # condition of zero translation
         if (n_steps == 0) or (max_trans==0):
@@ -390,9 +393,10 @@ class Beam_offset_generator_snowflake:
         For each tilt angle, offset the original hexagonally-tiled beam positions
         based on the specified translational (snowflake) and rotational elements.
         
-        Parameters:
-        -----------
-        file_path: path to store pickled beam centers, optional
+        Parameters
+        ----------
+        file_path : string 
+            path to store pickled beam centers, optional
         """
         
         for a, tilt_angle in enumerate(self.tilt_series):
@@ -461,14 +465,17 @@ class Beam_offset_generator_spiral:
         Number of points is the same as number of projection images; points
         spiral outwards from the center / origin.
 
-        Parameters:
-        -----------
-        n_revolutions: approximate number of revolutions for entire spiral
-        max_translation: maximum distance from origin any point is allowed to take
+        Parameters
+        ----------
+        n_revolutions : float
+            approximate number of revolutions for entire spiral
+        max_translation : float
+            threshold in number of radii for maximum Xscale translation
 
         Returns:
         --------
-        spiral: (x,y) coordinates along spiral, np.array of shape (n_tilts, 2)
+        spiral: numpy.ndarray of shape (n_tilts, 2)
+            (x,y) coordinates of each beam along the spiral
         """
         # for the special case of 0 revolutions, introduce no translational offset
         if n_revolutions == 0:
@@ -495,10 +502,12 @@ class Beam_offset_generator_spiral:
         For each tilt angle, offset the original hexagonally-tiled beam positions
         based on the specified translational (spiral) and rotational elements.
         
-        Parameters:
-        -----------
-        file_path: path to store pickled beam centers, optional
-        max_offset: threshold in number of radii for maximum Xscale translation
+        Parameters
+        ----------
+        file_path : string 
+            path to store pickled beam centers, optional
+        max_offset : float
+            threshold in number of radii for maximum Xscale translation
         """
         for a,tilt_angle in enumerate(self.tilt_series):
             # rotational element: reorient hexagonally-tiled centers
@@ -565,11 +574,13 @@ class Beam_offset_generator_sunflower:
 
         Parameters:
         -----------
-        max_translation: maximum distance from origin any point is allowed to take
+        max_translation : float
+            threshold in number of radii for maximum Xscale translation
         
         Returns:
         --------
-        sunflower: (x,y) coordinates along sunflower, np.array of shape (n_tilts, 2)
+        sunflower: numpy.ndarray of shape (n_tilts, 2)
+            (x,y) coordinates along sunflower
         """
         # for the special case of 0 max_trans, introduce no translational offset
         if max_translation == 0:
@@ -590,10 +601,12 @@ class Beam_offset_generator_sunflower:
         For each tilt angle, offset the original hexagonally-tiled beam positions
         based on the specified translational (sunflower) and rotational elements.
         
-        Parameters:
-        -----------
-        file_path: path to store pickled beam centers, optional
-        max_offset: threshold in number of radii for maximum Xscale translation
+        Parameters
+        ----------
+        file_path : string 
+            path to store pickled beam centers, optional
+        max_offset : float
+            threshold in number of radii for maximum Xscale translation
         """
         for a,tilt_angle in enumerate(self.tilt_series):
             # rotational element: reorient hexagonally-tiled centers
