@@ -1,5 +1,5 @@
-from Microscope_parameters import *
-from Microscope_setup import *
+from sim_parameters import *
+from sim_setup import *
 import argparse, os, logging, sys
 import numpy as np
 
