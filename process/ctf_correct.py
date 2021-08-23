@@ -7,8 +7,8 @@ import utils
 """
 Estimate the defocus of the inscribed region of the beam for each tile using CTFFIND4 
 and correct using ctfphaseflip from IMOD. Note that the bash scripts this file calls
-assumes that ctffind4 version 4.1.13 is available as a module and that IMOD functions
-can be called from the command line.
+assumes that the ctffind and ctfphaseflip commands from ctffind4 version 4.1.13 and 
+IMOD respectively can be called from the command line.
 """
 
 def parse_commandline():

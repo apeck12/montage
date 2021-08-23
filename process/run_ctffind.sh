@@ -1,6 +1,6 @@
 # Script for running CTFFIND4 to estimate defocus, which takes as command line input:
 # [input_file] [output_file] [pixel_size] [min_defocus] [max_defocus] [search_step]
-# Note: below it's assumed that ctffind version 4.1.13 is available as a module.
+# Note: below it's assumed that the ctffind command can be run from the command line.
 
 # common microscope parameters
 voltage=300.0
@@ -8,8 +8,6 @@ Cs=2.70
 amp_contrast=0.07
 spectrum_length=512
 low_res=50.0
-
-module load ctffind/4.1.13
 
 ctffind <<EOF
 $1
