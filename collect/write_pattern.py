@@ -9,7 +9,7 @@ For a given (Archimedean/classic) spiral strategy, write the coordinates of all 
 at each tilt angle to a text file as input for SerialEM. The tile coordinates include
 both the x and y positions in the plane of the detector and the z-height at the tile's
 center (to enable autofocusing). These coordinates are listed after the relevant angle,
-and tiles are ordered to spiral outwards from the central tile.
+and tiles are ordered to spiral outwards from the central tile. 
 """
 
 def parse_commandline():
@@ -43,6 +43,8 @@ def parse_commandline():
                         required=False, default=cal_fractional_overlap(), type=float)
     parser.add_argument('-ff','--fringe_fraction', help='Fraction of beam radius discarded due to Fresnel fringes, float between 0 and 1', 
                         required=False, default=0, type=float)
+    parser.add_argument('-gds','--grouped_dose_symmetric', help='Order for a grouped dose-symmetric (rather than dose-symmetric) scheme',
+                        action='store_true')
     parser.add_argument('-o', '--output', help='File name of output',
                         required=True, type=str)
     return vars(parser.parse_args())
@@ -158,8 +160,46 @@ def compute_zheights(ts_beam_pos):
     
     for angle in ts_beam_pos.keys():
         z = ts_beam_pos[angle][:,1] * np.tan(np.deg2rad(angle))
+        z *= -1 # reverse axis directionality for consistency with SerialEM
         ts_beam_pos[angle] = np.hstack((ts_beam_pos[angle], z[:,np.newaxis]))
         
+    return ts_beam_pos
+
+
+def reorder_grouped_ds(ts_beam_pos, tilt_increment):
+    """
+    Reorder the tilt angles to follow a grouped dose-symmetric scheme.
+    
+    Parameters
+    ----------
+    ts_beam_pos : OrderedDict 
+        tilt angle: array of beam center coordinates and height in nanometers
+    
+    Returns
+    --------
+    ts_beam_pos : OrderedDict 
+        input dictionary, reordered to follow a grouped dose-symmetric scheme
+    """
+    
+    if tilt_increment==2 and len(ts_beam_pos.keys())==61:
+        new_order = np.array([ 0,   2,   4,   6,  -2,  -4,  -6,   8,  10,  12,  -8, -10, -12,
+                              14,  16,  18, -14, -16, -18,  20,  22,  24, -20, -22, -24,  26,
+                              28,  30, -26, -28, -30,  32,  34,  36, -32, -34, -36,  38,  40,
+                              42, -38, -40, -42,  44,  46,  48,  50,  52,  54,  56,  58,  60,
+                              -44, -46, -48, -50, -52, -54, -56, -58, -60])
+        ts_beam_pos = OrderedDict({angle:ts_beam_pos[angle] for angle in new_order})
+        
+    elif tilt_increment==3 and len(ts_beam_pos.keys())==41:
+        new_order = np.array([  0,   3,   6,  -3,  -6,   9,  12,  -9, -12,  15,  18, -15, -18,
+                              21,  24, -21, -24,  27,  30, -27, -30,  33,  36, -33, -36,  39,
+                              42, -39, -42,  45,  48, -45, -48, -51, -54, -57, -60,  51,  54, 57,  60])
+        ts_beam_pos = OrderedDict({angle:ts_beam_pos[angle] for angle in new_order})
+       
+    else:
+        print("Sorry, currently only tilt-acquisition schemes with a tilt increment of\n"+
+              "2 or 3 degrees and a tilt-range of -60 to +60 degrees can be reordered \n"+
+              "to follow a grouped dose-symmetric pattern. This has to be done manually.")
+    
     return ts_beam_pos
 
 
@@ -212,6 +252,8 @@ def main():
     ord_beam_pos = hexagonal_base(args) # hexagonally-tiled beams
     ts_beam_pos = generate_spiral(args, ord_beam_pos) # spiral for tilt-series
     ts_beam_pos = compute_zheights(ts_beam_pos) # include for defocus estimation
+    if args['grouped_dose_symmetric']: # change from dose-symmetric to grouped dose-symmetric
+        ts_beam_pos = reorder_grouped_ds(ts_beam_pos, args['tilt_increment'])
 
     write_coordinates(ts_beam_pos, args['output'])
 

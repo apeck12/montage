@@ -154,7 +154,7 @@ Loop $TSNumber
    Else
       TiltTo ($Angle - 1)
       TiltTo $Angle
-      MoveStageTo $MinusStagePos[1] $MinusStagePos[2]
+      MoveStageTo $MinusStagePos[1] $MinusStagePos[2]
       Loop $LmtRATimes
          View
          AlignTo S
