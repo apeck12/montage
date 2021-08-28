@@ -44,3 +44,38 @@ def save_mrc(data, savename, voxel_size=None):
         mrc.voxel_size = voxel_size
     mrc.close()
     return
+
+
+def patch_image(region, sigma=0.19):
+    """
+    Patch zero-valued gap between tiles in a subregion of an image. 
+    The gap is identified by applying tools from scipy.ndimage to the
+    Gaussian-filtered subregion, and then sampling from the remaining
+    pixels in the subregion to fill the gap.
+    
+    Parameters
+    ----------
+    region : numpy.ndarray, shape (M,N)
+        subimage of full stitch to patch
+    sigma : float
+        kernel size for Gaussian filter
+        
+    Returns
+    -------
+    region : numpy.ndarray, shape (M,N)
+        patched subimage
+    """
+    import scipy.ndimage
+    
+    region = scipy.ndimage.gaussian_filter(region, 0.19)
+
+    mask = np.zeros_like(region)
+    mask[region==0] = 1
+
+    struct = scipy.ndimage.generate_binary_structure(2, 1)
+    labeled, ncomponents = scipy.ndimage.measurements.label(mask, struct)
+    
+    region[labeled!=0] = np.random.choice(region[labeled==0], size=region[labeled!=0].shape[0])
+    
+    return region
+    
