@@ -23,7 +23,6 @@ def apply_rotation(beam_centers, rotation_angle):
     
     return beam_centers.dot(R)
 
-
 def save_mrc(data, savename, voxel_size=None):
     """
     Save data in .mrc format.
@@ -44,7 +43,6 @@ def save_mrc(data, savename, voxel_size=None):
         mrc.voxel_size = voxel_size
     mrc.close()
     return
-
 
 def patch_image(region, sigma=0.19):
     """
@@ -67,10 +65,10 @@ def patch_image(region, sigma=0.19):
     """
     import scipy.ndimage
     
-    region = scipy.ndimage.gaussian_filter(region, 0.19)
+    region_filt = scipy.ndimage.gaussian_filter(region, sigma)
 
     mask = np.zeros_like(region)
-    mask[region==0] = 1
+    mask[region_filt==0] = 1
 
     struct = scipy.ndimage.generate_binary_structure(2, 1)
     labeled, ncomponents = scipy.ndimage.measurements.label(mask, struct)
