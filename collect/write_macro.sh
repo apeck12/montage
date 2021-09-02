@@ -26,25 +26,25 @@ TileNumber = $5
 
 NewArray PlusStagePos -1 2
 NewArray MinusStagePos -1 2
-OpenTextFile MTSPar r 0 $ParFilename
+OpenTextFile MTSPar r 0 \$ParFilename
 NewArray Angle -1 1
 NewArray MontIS_D -1 3
 NewArray LastMontIS_D -1 3 
 
-Loop $TSNumber
+Loop \$TSNumber
    Count = 0
    SetImageShift 0 0
    ReadLineToArray MTSPar Angle
-   Echo Tilt to $Angle
-   If $Angle == 0
-      TiltTo $Angle
+   Echo Tilt to \$Angle
+   If \$Angle == 0
+      TiltTo \$Angle
       ResetImageShift 
-      Loop $LmtRATimes
+      Loop \$LmtRATimes
          View
          AlignTo T
          ReportSpecimenShift 
-         IS = $reportedValue1 * $reportedValue1 + $reportedValue2 * $reportedValue2
-         If $IS > $LmtISShift
+         IS = \$reportedValue1 * \$reportedValue1 + \$reportedValue2 * \$reportedValue2
+         If \$IS > \$LmtISShift
             ResetImageShift
          Else
             Break 
@@ -54,51 +54,51 @@ Loop $TSNumber
       Copy A R
       Copy A S
       ReportStageXYZ
-      PlusStagePos[1] = $ReportedValue1
-      PlusStagePos[2] = $ReportedValue2
-      MinusStagePos = $PlusStagePos
+      PlusStagePos[1] = \$ReportedValue1
+      PlusStagePos[2] = \$ReportedValue2
+      MinusStagePos = \$PlusStagePos
       
       AutoFocus 
       Trial 
       CenterBeamFromImage 1
 
       ReadLineToArray MTSPar LastMontIS_D
-      ImageShiftByMicrons $LastMontIS_D[1] $LastMontIS_D[2]
-      output_file = $OFPrefix_$Angle_$Count.mrc
-      OpenNewFile $output_file 
-      Delay $ISDelay
+      ImageShiftByMicrons \$LastMontIS_D[1] \$LastMontIS_D[2]
+      output_file = \$OFPrefix_\$Angle_\$Count.mrc
+      OpenNewFile \$output_file 
+      Delay \$ISDelay
       Record
       Save
       CloseFile 
-      Echo $output_file saved
+      Echo \$output_file saved
       CenterBeamFromImage 1
-      Loop $TileNumber
-         Count = $Count + 1
+      Loop \$TileNumber
+         Count = \$Count + 1
          ReadLineToArray MTSPar MontIS_D
-         IS_X = $MontIS_D[1] - $LastMontIS_D[1]
-         IS_Y = $MontIS_D[2] - $LastMontIS_D[2]
-         ImageShiftByMicrons $IS_X $IS_Y
+         IS_X = \$MontIS_D[1] - \$LastMontIS_D[1]
+         IS_Y = \$MontIS_D[2] - \$LastMontIS_D[2]
+         ImageShiftByMicrons \$IS_X \$IS_Y
          ReportSpecimenShift
-         output_file = $OFPrefix_$Angle_$Count.mrc
-         OpenNewFile $output_file
-         Delay $ISDelay
+         output_file = \$OFPrefix_\$Angle_\$Count.mrc
+         OpenNewFile \$output_file
+         Delay \$ISDelay
          Record
          Save
          CloseFile 
-         Echo $output_file saved
+         Echo \$output_file saved
          CenterBeamFromImage 1
-         LastMontIS_D = $MontIS_D
+         LastMontIS_D = \$MontIS_D
       EndLoop
   
-   ElseIf $Angle > 0
-      TiltTo $Angle
-      MoveStageTo $PlusStagePos[1] $PlusStagePos[2]
-      Loop $LmtRATimes
+   ElseIf \$Angle > 0
+      TiltTo \$Angle
+      MoveStageTo \$PlusStagePos[1] \$PlusStagePos[2]
+      Loop \$LmtRATimes
          View
          AlignTo R
          ReportSpecimenShift 
-         IS = $reportedValue1 * $reportedValue1 + $reportedValue2 * $reportedValue2
-         If $IS > $LmtISShift
+         IS = \$reportedValue1 * \$reportedValue1 + \$reportedValue2 * \$reportedValue2
+         If \$IS > \$LmtISShift
             ResetImageShift
          Else
             Break 
@@ -107,60 +107,60 @@ Loop $TSNumber
       View
       Copy A R
       ReportStageXYZ
-      PlusStagePos[1] = $ReportedValue1
-      PlusStagePos[2] = $ReportedValue2
+      PlusStagePos[1] = \$ReportedValue1
+      PlusStagePos[2] = \$ReportedValue2
       
       AutoFocus
       Trial 
       CenterBeamFromImage 1
 
       ReadLineToArray MTSPar LastMontIS_D
-      ImageShiftByMicrons $LastMontIS_D[1] $LastMontIS_D[2]
-      if $LastMontIS_D[3] != 0
-         ChangeFocus $LastMontIS_D[3]
-         echo chang focus by $LastMontIS_D[3]
+      ImageShiftByMicrons \$LastMontIS_D[1] \$LastMontIS_D[2]
+      if \$LastMontIS_D[3] != 0
+         ChangeFocus \$LastMontIS_D[3]
+         echo chang focus by \$LastMontIS_D[3]
       endif
-      output_file = $OFPrefix_$Angle_$Count.mrc
-      OpenNewFile $output_file 
-      Delay $ISDelay
+      output_file = \$OFPrefix_\$Angle_\$Count.mrc
+      OpenNewFile \$output_file 
+      Delay \$ISDelay
       Record
       Save
       CloseFile 
-      Echo $output_file saved
+      Echo \$output_file saved
       CenterBeamFromImage 1
-      Loop $TileNumber
-         Count = $Count + 1
+      Loop \$TileNumber
+         Count = \$Count + 1
          ReadLineToArray MTSPar MontIS_D
-         IS_X = $MontIS_D[1] - $LastMontIS_D[1]
-         IS_Y = $MontIS_D[2] - $LastMontIS_D[2]
-         DelDef = $MontIS_D[3] - $LastMontIS_D[3]
-         ImageShiftByMicrons $IS_X $IS_Y
-         if $DelDef != 0
-            ChangeFocus $DelDef
-            echo change focus by $DelDef
+         IS_X = \$MontIS_D[1] - \$LastMontIS_D[1]
+         IS_Y = \$MontIS_D[2] - \$LastMontIS_D[2]
+         DelDef = \$MontIS_D[3] - \$LastMontIS_D[3]
+         ImageShiftByMicrons \$IS_X \$IS_Y
+         if \$DelDef != 0
+            ChangeFocus \$DelDef
+            echo change focus by \$DelDef
          Endif 
          ReportSpecimenShift
-         output_file = $OFPrefix_$Angle_$Count.mrc
-         OpenNewFile $output_file 
-         Delay $ISDelay
+         output_file = \$OFPrefix_\$Angle_\$Count.mrc
+         OpenNewFile \$output_file 
+         Delay \$ISDelay
          Record
          Save
          CloseFile 
-         Echo $output_file saved
+         Echo \$output_file saved
          CenterBeamFromImage 1
-         LastMontIS_D = $MontIS_D
+         LastMontIS_D = \$MontIS_D
       EndLoop
   
    Else
-      TiltTo ($Angle - 1)
-      TiltTo $Angle
-      MoveStageTo $MinusStagePos[1] $MinusStagePos[2]
-      Loop $LmtRATimes
+      TiltTo (\$Angle - 1)
+      TiltTo \$Angle
+      MoveStageTo \$MinusStagePos[1] \$MinusStagePos[2]
+      Loop \$LmtRATimes
          View
          AlignTo S
          ReportSpecimenShift 
-         IS = $reportedValue1 * $reportedValue1 + $reportedValue2 * $reportedValue2
-         If $IS > $LmtISShift
+         IS = \$reportedValue1 * \$reportedValue1 + \$reportedValue2 * \$reportedValue2
+         If \$IS > \$LmtISShift
             ResetImageShift
          Else
             Break 
@@ -169,48 +169,48 @@ Loop $TSNumber
       View
       Copy A S
       ReportStageXYZ
-      MinusStagePos[1] = $ReportedValue1
-      MinusStagePos[2] = $ReportedValue2
+      MinusStagePos[1] = \$ReportedValue1
+      MinusStagePos[2] = \$ReportedValue2
       
       AutoFocus
       Trial 
       CenterBeamFromImage 1
 
       ReadLineToArray MTSPar LastMontIS_D
-      ImageShiftByMicrons $LastMontIS_D[1] $LastMontIS_D[2]
-      if $LastMontIS_D[3] != 0
-         ChangeFocus $LastMontIS_D[3]
-         echo change focus by $LastMontIS_D[3]
+      ImageShiftByMicrons \$LastMontIS_D[1] \$LastMontIS_D[2]
+      if \$LastMontIS_D[3] != 0
+         ChangeFocus \$LastMontIS_D[3]
+         echo change focus by \$LastMontIS_D[3]
       Endif 
-      output_file = $OFPrefix_$Angle_$Count.mrc
-      OpenNewFile $output_file 
-      Delay $ISDelay
+      output_file = \$OFPrefix_\$Angle_\$Count.mrc
+      OpenNewFile \$output_file 
+      Delay \$ISDelay
       Record
       Save
       CloseFile 
-      Echo $output_file saved
+      Echo \$output_file saved
       CenterBeamFromImage 1
-      Loop $TileNumber
-         Count = $Count + 1
+      Loop \$TileNumber
+         Count = \$Count + 1
          ReadLineToArray MTSPar MontIS_D
-         IS_X = $MontIS_D[1] - $LastMontIS_D[1]
-         IS_Y = $MontIS_D[2] - $LastMontIS_D[2]
-         DelDef = $MontIS_D[3] - $LastMontIS_D[3]
-         if $DelDef != 0
-            echo change focus by $DelDef
-            ChangeFocus $DelDef
+         IS_X = \$MontIS_D[1] - \$LastMontIS_D[1]
+         IS_Y = \$MontIS_D[2] - \$LastMontIS_D[2]
+         DelDef = \$MontIS_D[3] - \$LastMontIS_D[3]
+         if \$DelDef != 0
+            echo change focus by \$DelDef
+            ChangeFocus \$DelDef
          Endif  
-         ImageShiftByMicrons $IS_X $IS_Y
+         ImageShiftByMicrons \$IS_X \$IS_Y
          ReportSpecimenShift
-         output_file = $OFPrefix_$Angle_$Count.mrc
-         OpenNewFile $output_file 
-         Delay $ISDelay
+         output_file = \$OFPrefix_\$Angle_\$Count.mrc
+         OpenNewFile \$output_file 
+         Delay \$ISDelay
          Record
          Save
          CloseFile 
-         Echo $output_file saved
+         Echo \$output_file saved
          CenterBeamFromImage 1
-         LastMontIS_D = $MontIS_D
+         LastMontIS_D = \$MontIS_D
       EndLoop
 
    Endif 
