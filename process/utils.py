@@ -76,4 +76,31 @@ def patch_image(region, sigma=0.19):
     region[labeled!=0] = np.random.choice(region[labeled==0], size=region[labeled!=0].shape[0])
     
     return region
+
+def patch_region_inside_vertices(region, vertices):
+    """
+    Patch the portion of the region that lies inside the given vertices.
     
+    Paramters
+    ---------
+    region : numpy.ndarray, shape (M,N)
+        subimage of full stitch to patch
+    vertices : numpy.ndarray, shape (P,2)
+        vertices of polygon that encloses the area to patch
+        
+    Returns
+    -------
+    region : numpy.ndarray, shape (M,N)
+        patched subimage
+    """
+    import matplotlib.path
+    
+    x,y = np.arange(region.shape[1]), np.arange(region.shape[0])
+    x,y = np.meshgrid(x,y)
+    positions = np.vstack([x.ravel(), y.ravel()]).T
+
+    p = matplotlib.path.Path(vertices)
+    interior = p.contains_points(positions).reshape(region.shape)
+    region[interior] = np.random.choice(region[~interior], size=region[interior].shape[0])
+    
+    return region
